@@ -1,0 +1,13 @@
+body {
+    color: white;
+    background-color: black;
+}
+
+.keyTable {
+    border: 1px solid yellow;
+}
+
+.keyTable thead {
+    font-weight: bold;
+    border-bottom: 1px solid yellow;
+}

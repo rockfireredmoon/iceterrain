@@ -1,0 +1,12 @@
+#!/bin/bash
+
+CACHE_DIR="${HOME}/.cache/iceterrain"
+mkdir -p "${CACHE_DIR}"
+pushd "${CACHE_DIR}"
+for i in /usr/lib/iceterrain/* ; do
+	basename="$(basename ${i})"
+	if [ ! -f "${basename}" -a ! -L "${basename}" ]; then
+		ln -s "${i}" . 2>/dev/null
+	fi
+done
+java -jar /usr/lib/iceterrain/getdown.jar . 

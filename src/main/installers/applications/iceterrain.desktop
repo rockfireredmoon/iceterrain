@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Iceterrain
+Name[en_GB]=Iceterrain
+GenericName=Planet Forever Terrain Editor
+GenericName[en_GB]=Planet Forever Terrain Editor
+Comment=Planet Forever Terrain Editor
+Icon=iceterrain.png
+TryExec=iceterrain
+Exec=iceterrain
+Terminal=false
+# Categorie entry according to version 1.0 of
+# http://www.freedesktop.org/wiki/Specifications/menu-spec
+Categories=GNOME;Network;
+Encoding=UTF-8
