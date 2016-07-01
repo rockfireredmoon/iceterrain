@@ -29,7 +29,9 @@
 						<goals>
 							<goal>updates</goal>
 							<goal>stub</goal>
+							<!--
 							<goal>applet</goal>
+							-->
 						</goals>
 						<configuration>
 							<appbase>${terrain.home}/getdown</appbase>
@@ -48,10 +50,10 @@
 							<ui>
 								<name>Iceterrain</name>
 								<icons>
-									<icon>${basedir}/../iceterrain-group/src/main/installers/images/iceterrain.png</icon>
+									<icon>${basedir}/../src/main/installers/images/iceterrain.png</icon>
 								</icons>
-								<progressImage>${basedir}/../iceterrain-group/src/main/installers/images/progress.png</progressImage>
-								<backgroundImage>${basedir}/../iceterrain-group/src/main/installers/images/splash.png</backgroundImage>
+								<progressImage>${basedir}/../src/main/installers/images/progress.png</progressImage>
+								<backgroundImage>${basedir}/../src/main/installers/images/splash.png</backgroundImage>
 								<progress>80, 244, 196, 11</progress>
 								<progressText>FFFFFF</progressText>
 								<statusText>FFFFFF</statusText>
@@ -59,6 +61,7 @@
 								<textShadow>111111</textShadow>
 							</ui>
 
+							<!--
 							<sign>
 								<keystore>${signingFiles}/${certificate.keystore}</keystore>
 								<keypass>${certificate.password}</keypass>
@@ -67,6 +70,7 @@
 								<alias>${certificate.alias}</alias>
 								<verify>true</verify>
 							</sign>
+							-->
 
 						</configuration>
 					</execution>
@@ -114,7 +118,7 @@
 						</data>
 						<data>
 							<type>directory</type>
-							<src>${basedir}/../iceterrain-group/src/main/installers/scripts</src>
+							<src>${basedir}/../src/main/installers/scripts</src>
 							<includes>*</includes>
 							<mapper>
 								<type>perm</type>
@@ -127,7 +131,7 @@
 						</data>
 						<data>
 							<type>directory</type>
-							<src>${basedir}/../iceterrain-group/src/main/installers/images</src>
+							<src>${basedir}/../src/main/installers/images</src>
 							<includes>iceterrain.png</includes>
 							<mapper>
 								<type>perm</type>
@@ -140,7 +144,7 @@
 						</data>
 						<data>
 							<type>directory</type>
-							<src>${basedir}/../iceterrain-group/src/main/installers/applications</src>
+							<src>${basedir}/../src/main/installers/applications</src>
 							<includes>*</includes>
 							<mapper>
 								<type>perm</type>
@@ -189,7 +193,7 @@
 							<groupname>root</groupname>
 							<sources>
 								<source>
-									<location>${basedir}/../iceterrain-group/src/main/installers/scripts/iceterrain</location>
+									<location>${basedir}/../src/main/installers/scripts/iceterrain</location>
 								</source>
 							</sources>
 						</mapping>
@@ -200,7 +204,7 @@
 							<groupname>root</groupname>
 							<sources>
 								<source>
-									<location>${basedir}/../iceterrain-group/src/main/installers/applications/iceterrain.desktop</location>
+									<location>${basedir}/../src/main/installers/applications/iceterrain.desktop</location>
 								</source>
 							</sources>
 						</mapping>
@@ -211,7 +215,7 @@
 							<groupname>root</groupname>
 							<sources>
 								<source>
-									<location>${basedir}/../iceterrain-group/src/main/installers/images/iceterrain.png</location>
+									<location>${basedir}/../src/main/installers/images/iceterrain.png</location>
 								</source>
 							</sources>
 						</mapping>
@@ -287,7 +291,7 @@
 			</plugin>
 
 			<!-- And now OS X -->
-
+			<!--
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>osxappbundle-maven-plugin</artifactId>
@@ -321,6 +325,8 @@
 				</executions>
 			</plugin>
 
+			-->
+
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>wagon-maven-plugin</artifactId>
@@ -334,7 +340,7 @@
 						</goals>
 						<configuration>
 							<fromDir>target</fromDir>
-							<includes>getdown/**/*,getdown-applet/**/*,iceterrain-app.zip,iceterrain.deb,SetupIceterrain.exe,iceterrain.noarch.rpm</includes>
+							<includes>getdown/**/*,iceterrain-app.zip,iceterrain.deb,SetupIceterrain.exe,iceterrain.noarch.rpm</includes>
 							<url>scp://${terrain.username}@${terrain.host}${terrain.dir}</url>
 						</configuration>
 					</execution>
