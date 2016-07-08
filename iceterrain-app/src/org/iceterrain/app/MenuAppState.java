@@ -32,12 +32,10 @@ import org.icescene.options.OptionsAppState;
 import org.iceskies.environment.AbstractEnvironmentConfiguration;
 import org.iceskies.environment.EditableEnvironmentSwitcherAppState;
 import org.iceskies.environment.EnvironmentEditWindow;
-import org.iceskies.environment.EnvironmentGroupConfiguration;
 import org.iceskies.environment.EnvironmentManager;
 import org.iceskies.environment.EnvironmentSwitcherAppState;
 import org.iceskies.environment.EnvironmentSwitcherAppState.EnvPriority;
 import org.iceskies.environment.Environments;
-import org.iceskies.environment.LocalEnvironments;
 import org.iceskies.environment.enhanced.EnhancedEnvironmentConfiguration;
 import org.iceskies.environment.legacy.LegacyEnvironmentConfiguration;
 import org.iceterrain.TerrainEditorAppState;
@@ -53,10 +51,12 @@ import org.iceui.controls.FancyWindow;
 import org.iceui.controls.UIUtil;
 import org.iceui.controls.XSeparator;
 import org.iceui.controls.ZMenu;
+import org.iceui.controls.ZMenu.ZMenuItem;
 
 import com.jme3.asset.AssetInfo;
 import com.jme3.asset.AssetKey;
 import com.jme3.input.event.MouseButtonEvent;
+import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector2f;
@@ -517,7 +517,10 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			TerrainTemplateConfiguration cfg = TerrainTemplateConfiguration.get(assetManager, n);
 			if (!cfg.getBaseTemplateName().equals("Common") && !cfg.getBaseTemplateName().equals("Default")
 					&& !cfg.equals(loader.getTerrainTemplate())) {
-				menu.addMenuItem(Icelib.toEnglish(cfg.getBaseTemplateName()), cfg);
+				ZMenuItem m = menu.addMenuItem(Icelib.toEnglish(cfg.getBaseTemplateName()), cfg);
+                if (((IcesceneApp) app).getAssets().isExternal(cfg.getAssetPath())) {
+                    m.getItemTextElement().setFontColor(ColorRGBA.Green);
+                }
 			}
 		}
 

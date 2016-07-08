@@ -48,7 +48,6 @@ import org.iceterrain.brushes.TerrainSplatBrush;
 import org.iceui.HPosition;
 import org.iceui.UIConstants;
 import org.iceui.VPosition;
-import org.iceui.XTabPanelContent;
 import org.iceui.controls.ElementStyle;
 import org.iceui.controls.FancyButton;
 import org.iceui.controls.FancyDialogBox;
@@ -56,6 +55,7 @@ import org.iceui.controls.FancyPersistentWindow;
 import org.iceui.controls.FancyWindow;
 import org.iceui.controls.IconTabControl;
 import org.iceui.controls.SaveType;
+import org.iceui.controls.TabPanelContent;
 import org.iceui.controls.UIUtil;
 import org.iceui.controls.XSeparator;
 import org.iceui.effects.EffectHelper;
@@ -101,9 +101,9 @@ import icetone.controls.lists.Table;
 import icetone.controls.text.Label;
 import icetone.core.Container;
 import icetone.core.Element;
-import icetone.core.ElementManager;
 import icetone.core.Element.Orientation;
 import icetone.core.Element.ZPriority;
+import icetone.core.ElementManager;
 import icetone.core.layout.BorderLayout;
 import icetone.core.layout.FlowLayout;
 import icetone.core.layout.mig.MigLayout;
@@ -1010,7 +1010,8 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	private void destroyCursor() {
-		cursorSpatial.removeFromParent();
+		if(cursorSpatial != null)
+			cursorSpatial.removeFromParent();
 		cursorSpatial = null;
 	}
 
@@ -1345,8 +1346,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		}
 	}
 
-	private XTabPanelContent splatTab() {
-		XTabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.SPLAT);
+	private TabPanelContent splatTab() {
+		TabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.SPLAT);
 		toolOptions.setLayoutManager(new MigLayout(screen, "wrap 3, fill", "[16::][24::][fill, grow]",
 				"[shrink 0][shrink 0][shrink 0][shrink 0][shrink 0][shrink 0][shrink 0][grow][shrink 0][shrink 0]"));
 
@@ -1523,7 +1524,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		return toolOptions;
 	}
 
-	private XTabPanelContent paintTab() {
+	private TabPanelContent paintTab() {
 		final RadioButtonGroup paintGroup = new RadioButtonGroup(screen) {
 			@Override
 			public void onSelect(int index, Button value) {
@@ -1542,7 +1543,7 @@ public class TerrainEditorAppState extends TerrainAppState
 				recreateCursor();
 			}
 		};
-		XTabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.PAINT) {
+		TabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.PAINT) {
 			@Override
 			public void childShow() {
 				super.childShow();
@@ -1601,7 +1602,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		return toolOptions;
 	}
 
-	private XTabPanelContent selectTab() {
+	private TabPanelContent selectTab() {
 		selectTab = new ModeTab(screen, TerrainEditorMode.SELECT);
 		selectTab.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[shrink 0][fill]", "[][][][]push[]"));
 
@@ -1939,8 +1940,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		setAvailable();
 	}
 
-	private XTabPanelContent flattenTab() {
-		XTabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.FLATTEN);
+	private TabPanelContent flattenTab() {
+		TabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.FLATTEN);
 		toolOptions.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[][fill, grow]", "[][][]push"));
 
 		// Brush Size
@@ -1993,9 +1994,9 @@ public class TerrainEditorAppState extends TerrainAppState
 		return toolOptions;
 	}
 
-	private XTabPanelContent liquidTab() {
+	private TabPanelContent liquidTab() {
 
-		XTabPanelContent contentArea = new XTabPanelContent(screen);
+		TabPanelContent contentArea = new TabPanelContent(screen);
 		contentArea.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[][fill, grow]", "[][]push"));
 
 		liquidPlane = new ComboBox<String>(screen) {
@@ -2142,7 +2143,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		flattenElevation.setSelectedValue(terrainHeight);
 	}
 
-	class ModeTab extends XTabPanelContent {
+	class ModeTab extends TabPanelContent {
 
 		private final TerrainEditorMode mode;
 

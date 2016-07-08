@@ -212,8 +212,6 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 			public void tileUnloaded(TerrainInstance instance) {
 			}
 		});
-		// Environment switch manages which environment is actually active
-		String environment = terrainLoader.getGlobalTerrainTemplate().getEnvironment();
 
 		// Skies
 		EditableEnvironmentSwitcherAppState state = new EditableEnvironmentSwitcherAppState(null, prefs, null, el, gameNode,
