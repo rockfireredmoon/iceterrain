@@ -84,6 +84,7 @@ Section "Iceterrain" Iceterrain
   File iceterrainsmall.ico
   File iceterrainbanner.bmp
   File Readme.txt
+  File ..\..\..\src\main\installers\configuration\logging.properties
   
   ;Store installation folder
   WriteRegStr HKCU "Software\Iceterrain" "" $INSTDIR

@@ -74,7 +74,7 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 			throw new Exception("No URL supplied.");
 		}
 		Iceterrain app = new Iceterrain(cmdLine);
-		startApp(app, cmdLine, "PlanetForever - " + AppInfo.getName() + " - " + AppInfo.getVersion(),
+		startApp(app, cmdLine, AppInfo.getName() + " - " + AppInfo.getVersion(),
 				TerrainConstants.APPSETTINGS_NAME);
 	}
 
