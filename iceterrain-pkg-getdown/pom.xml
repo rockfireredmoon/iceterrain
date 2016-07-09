@@ -29,9 +29,7 @@
 						<goals>
 							<goal>updates</goal>
 							<goal>stub</goal>
-							<!--
-							<goal>applet</goal>
-							-->
+							<!-- <goal>applet</goal> -->
 						</goals>
 						<configuration>
 							<appbase>${terrain.home}/getdown</appbase>
@@ -46,7 +44,9 @@
 							<appargs>
 								<apparg>${terrain.assetUrl}</apparg>
 							</appargs>
-
+							<jvmargs>
+								<jvmarg>-Djava.util.logging.config.file=logging.properties</jvmarg>
+							</jvmargs>
 							<ui>
 								<name>Iceterrain</name>
 								<icons>
@@ -61,16 +61,10 @@
 								<textShadow>111111</textShadow>
 							</ui>
 
-							<!--
-							<sign>
-								<keystore>${signingFiles}/${certificate.keystore}</keystore>
-								<keypass>${certificate.password}</keypass>
-								<storepass>${certificate.password}</storepass>
-								<storetype>${certificate.storetype}</storetype>
-								<alias>${certificate.alias}</alias>
-								<verify>true</verify>
-							</sign>
-							-->
+							<!-- <sign> <keystore>${signingFiles}/${certificate.keystore}</keystore> 
+								<keypass>${certificate.password}</keypass> <storepass>${certificate.password}</storepass> 
+								<storetype>${certificate.storetype}</storetype> <alias>${certificate.alias}</alias> 
+								<verify>true</verify> </sign> -->
 
 						</configuration>
 					</execution>
@@ -266,11 +260,10 @@
 				</configuration>
 
 			</plugin>
-			
-			<!-- The RPM is output in the rpm build tree. We want it at the 
-			root with the other built files, and renamed slightly. As the RPM
-			plugin has no way of setting this (that I can see), we move it
-			using Ant -->
+
+			<!-- The RPM is output in the rpm build tree. We want it at the root with 
+				the other built files, and renamed slightly. As the RPM plugin has no way 
+				of setting this (that I can see), we move it using Ant -->
 			<plugin>
 				<artifactId>maven-antrun-plugin</artifactId>
 				<version>1.7</version>
@@ -283,7 +276,7 @@
 									<fileset dir="target/rpm/iceterrain/RPMS/noarch">
 										<include name="*.rpm" />
 									</fileset>
-									<mapper type="regexp" from="^([\w]*)-.*$$" to="\1.noarch.rpm"/> 
+									<mapper type="regexp" from="^([\w]*)-.*$$" to="\1.noarch.rpm" />
 								</copy>
 							</target>
 						</configuration>
@@ -319,41 +312,16 @@
 			</plugin>
 
 			<!-- And now OS X -->
-			<!--
-			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>osxappbundle-maven-plugin</artifactId>
-				<version>1.0-alpha-3-icemoon</version>
-				<configuration>
-					<buildDirectory>target/Iceterrain</buildDirectory>
-					<bundleName>Iceterrain</bundleName>
-					<zipFile>${basedir}/target/iceterrain-app.zip</zipFile>
-					<excludeArtifacts>true</excludeArtifacts>
-					<javaApplicationStub>${basedir}/../ice/stubs/osx-stub</javaApplicationStub>
-					<mainClass>com.threerings.getdown.launcher.GetdownApp</mainClass>
-					<additionalClasspath>
-						<path>getdown.jar</path>
-					</additionalClasspath>
-					<additionalResources>
-						<fileSet>
-							<directory>${basedir}/target/getdown-stub</directory>
-							<includes>
-								<include>**/*</include>
-							</includes>
-						</fileSet>
-					</additionalResources>
-				</configuration>
-				<executions>
-					<execution>
-						<phase>package</phase>
-						<goals>
-							<goal>bundle</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-
-			-->
+			<!-- <plugin> <groupId>org.codehaus.mojo</groupId> <artifactId>osxappbundle-maven-plugin</artifactId> 
+				<version>1.0-alpha-3-icemoon</version> <configuration> <buildDirectory>target/Iceterrain</buildDirectory> 
+				<bundleName>Iceterrain</bundleName> <zipFile>${basedir}/target/iceterrain-app.zip</zipFile> 
+				<excludeArtifacts>true</excludeArtifacts> <javaApplicationStub>${basedir}/../ice/stubs/osx-stub</javaApplicationStub> 
+				<mainClass>com.threerings.getdown.launcher.GetdownApp</mainClass> <additionalClasspath> 
+				<path>getdown.jar</path> </additionalClasspath> <additionalResources> <fileSet> 
+				<directory>${basedir}/target/getdown-stub</directory> <includes> <include>**/*</include> 
+				</includes> </fileSet> </additionalResources> </configuration> <executions> 
+				<execution> <phase>package</phase> <goals> <goal>bundle</goal> </goals> </execution> 
+				</executions> </plugin> -->
 
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>

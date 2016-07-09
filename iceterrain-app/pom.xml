@@ -60,7 +60,7 @@
 							<Main-Class>org.iceterrain.Iceterrain</Main-Class>
 							<SplashScreen-Image>Textures/splash.png</SplashScreen-Image>
 							<Application-Version>${project.version}-${buildNumber}</Application-Version>
-							<Application-Name>Iceclient</Application-Name>
+							<Application-Name>Iceterrain</Application-Name>
 						</manifestEntries>
 					</archive>
 				</configuration>
