@@ -1224,7 +1224,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		String coveragePath = String.format("%s/%s", page.getTerrainTemplate().getAssetFolder(), coverageName);
 
 		Image img = page.getCoverage();
-		File file = TerrainEditorAppState.this.app.getAssets().getExternalAssetFile(coveragePath);
+		File file = Icelib.makeParent(TerrainEditorAppState.this.app.getAssets().getExternalAssetFile(coveragePath));
 		LOG.info(String.format("Writing coverage of %s to %s", page, file));
 		FileOutputStream fos = new FileOutputStream(file);
 		try {
@@ -1252,7 +1252,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		String heightmapName = String.format(page.getTerrainTemplate().getHeightmapImageFormat(), page.getPage().x,
 				page.getPage().y);
 		String heightmapPath = String.format("%s/%s", page.getTerrainTemplate().getAssetFolder(), heightmapName);
-		File heightmapFile = app.getAssets().getExternalAssetFile(heightmapPath);
+		File heightmapFile = Icelib.makeParent(app.getAssets().getExternalAssetFile(heightmapPath));
 		FileOutputStream out = new FileOutputStream(heightmapFile);
 		try {
 			LOG.info(String.format("Saving greyscale image based heightmap of %d x %d to %s (%d bpp %s)", img.getWidth(),
@@ -1266,8 +1266,8 @@ public class TerrainEditorAppState extends TerrainAppState
 
 	private void saveTemplate(TerrainInstance page) throws FileNotFoundException, IOException {
 		String fileName = format(page.getTerrainTemplate().getPerPageConfig(), page.getPage().x, page.getPage().y);
-		File file = TerrainEditorAppState.this.app.getAssets()
-				.getExternalAssetFile(String.format("%s/%s", page.getTerrainTemplate().getAssetFolder(), fileName));
+		File file = Icelib.makeParent(TerrainEditorAppState.this.app.getAssets()
+				.getExternalAssetFile(String.format("%s/%s", page.getTerrainTemplate().getAssetFolder(), fileName)));
 		LOG.info(String.format("Writing %s to %s", page, file));
 		FileOutputStream fos = new FileOutputStream(file);
 		try {
@@ -1893,8 +1893,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		img = new Image(Image.Format.ABGR8, 256, 256, ByteBuffer.allocateDirect(256 * 256 * 4));
 		ImagePainter p = new ImagePainter(img);
 		p.wipe(new ColorRGBA(0, 0, 0, 1));
-		FileOutputStream out = new FileOutputStream(app.getAssets().getExternalAssetFile(format("%s/%s",
-				terrainTemplate.getAssetFolder(), format(terrainTemplate.getTextureCoverageFormat(), tile.x, tile.y))));
+		FileOutputStream out = new FileOutputStream(Icelib.makeParent(app.getAssets().getExternalAssetFile(format("%s/%s",
+				terrainTemplate.getAssetFolder(), format(terrainTemplate.getTextureCoverageFormat(), tile.x, tile.y)))));
 		try {
 			PNGSaver.save(out, false, true, img);
 		} finally {

@@ -898,7 +898,7 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 								}
 							}
 
-							File outputFile = app.getAssets().getExternalAssetFile(name, targetDir);
+							File outputFile = Icelib.makeParent(app.getAssets().getExternalAssetFile(name, targetDir));
 							OutputStream out = new BufferedOutputStream(new FileOutputStream(outputFile), 65536);
 							if (!useFileCount) {
 								out = new FilterOutputStream(out) {

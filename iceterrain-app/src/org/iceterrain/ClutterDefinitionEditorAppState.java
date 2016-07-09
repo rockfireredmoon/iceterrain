@@ -179,8 +179,8 @@ public class ClutterDefinitionEditorAppState extends IcemoonAppState<TerrainEdit
 			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
 				try {
 					clutterConfiguration.putClutterDefinition(splatImageName, def);
-					File file = ClutterDefinitionEditorAppState.this.app.getAssets()
-							.getExternalAssetFile(clutterConfiguration.getAssetPath());
+					File file = Icelib.makeParent(ClutterDefinitionEditorAppState.this.app.getAssets()
+							.getExternalAssetFile(clutterConfiguration.getAssetPath()));
 					LOG.info(String.format("Writing %s to %s", splatImageName, file));
 					FileOutputStream fos = new FileOutputStream(file);
 					try {
