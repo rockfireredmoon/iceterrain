@@ -11,3 +11,29 @@ body {
     font-weight: bold;
     border-bottom: 1px solid yellow;
 }
+
+.imghdr {
+	background-repeat: no-repeat;
+	background-position: right center;
+	padding-right: 32px;
+}
+
+#selectMode {
+	background-image: url(/Interface/Styles/Gold/Common/Icons/select.png);
+}
+
+#paintMode {
+	background-image: url(/Interface/Styles/Gold/Common/Icons/brush.png);
+}
+
+#flattenMode {
+	background-image: url(/Interface/Styles/Gold/Common/Icons/roller.png);
+}
+
+#splatMode {
+	background-image: url(/Interface/Styles/Gold/Common/Icons/splat.png);
+}
+
+#liquidPlane {
+	background-image: url(/Interface/Styles/Gold/Common/Icons/wave.png);
+}

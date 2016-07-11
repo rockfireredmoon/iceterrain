@@ -18,6 +18,7 @@ import org.icescene.assets.Assets;
 import org.icescene.audio.AudioAppState;
 import org.icescene.configuration.TerrainTemplateConfiguration;
 import org.icescene.console.ConsoleAppState;
+import org.icescene.debug.LoadScreenAppState;
 import org.icescene.environment.EnvironmentLight;
 import org.icescene.environment.EnvironmentPhase;
 import org.icescene.environment.PostProcessAppState;
@@ -143,6 +144,13 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 		Node worldNode = new Node("World");
 		gameNode.attachChild(worldNode);
 		rootNode.attachChild(gameNode);
+		
+		
+		// Load screen
+		LoadScreenAppState load = new LoadScreenAppState(prefs);
+		load.setAutoShowOnDownloads(true);
+		load.setAutoShowOnTasks(true);
+		stateManager.attach(load);
 
 		// Environment needs audio (we can also set UI volume now)
 		final AudioAppState audioAppState = new AudioAppState(prefs);

@@ -100,6 +100,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 	private FancyButton environment;
 	private EnvironmentManager manager;
 	private FancyButton map;
+	private boolean loadingMenu;
+	private boolean loadingEnvironmentMenu;
 
 	@ServiceRef
 	protected static Environments environments;
@@ -121,8 +123,7 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 		terrain = new FancyButton(screen) {
 			@Override
 			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				ZMenu menu = createTerrainMenu();
-				menu.showMenu(null, evt.getX(), evt.getY());
+				createTerrainMenu(evt.getX(), evt.getY());
 			}
 		};
 		terrain.setText("Terrain");
@@ -131,8 +132,7 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 		environment = new FancyButton(screen) {
 			@Override
 			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				ZMenu menu = createEnvironmentMenu();
-				menu.showMenu(null, evt.getX(), evt.getY());
+				createEnvironmentMenu(evt.getX(), evt.getY());
 			}
 		};
 		environment.setText("Environment");
@@ -267,7 +267,9 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 		;
 	}
 
-	private ZMenu createEnvironmentMenu() {
+	private ZMenu createEnvironmentMenu(float x, float y) {
+		loadingEnvironmentMenu = true;
+		setAvailable();
 
 		final EnvironmentSwitcherAppState env = stateManager.getState(EnvironmentSwitcherAppState.class);
 		ZMenu menu = new ZMenu(screen) {
@@ -292,9 +294,6 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			}
 		};
 		menu.addMenuItem("Open", environmentsMenu, null);
-		for (String k : manager.getEnvironments()) {
-			environmentsMenu.addMenuItem(k, k);
-		}
 
 		menu.addMenuItem("New Environment", null, String.class);
 		if (env != null && env.getEnvironment() != null) {
@@ -321,7 +320,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			@Override
 			public void onItemSelected(ZMenuItem item) {
 				if (Boolean.FALSE.equals(item.getValue())) {
-					if (env instanceof EditableEnvironmentSwitcherAppState && ((EditableEnvironmentSwitcherAppState) env).isEdit())
+					if (env instanceof EditableEnvironmentSwitcherAppState
+							&& ((EditableEnvironmentSwitcherAppState) env).isEdit())
 						env.setEnvironment(EnvPriority.EDITING, null);
 					else
 						env.setEnvironment(EnvPriority.VIEWING, null);
@@ -348,15 +348,13 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			@Override
 			public void onItemSelected(ZMenuItem item) {
 				EnvironmentSwitcherAppState sas = app.getStateManager().getState(EnvironmentSwitcherAppState.class);
-				if (env instanceof EditableEnvironmentSwitcherAppState && ((EditableEnvironmentSwitcherAppState) env).isEdit())
+				if (env instanceof EditableEnvironmentSwitcherAppState
+						&& ((EditableEnvironmentSwitcherAppState) env).isEdit())
 					sas.setEnvironment(EnvPriority.EDITING, ((String) item.getValue()));
 				else
 					sas.setEnvironment(EnvPriority.VIEWING, ((String) item.getValue()));
 			}
 		};
-		for (String k : manager.getEnvironmentConfigurations()) {
-			openConfigurationMenu.addMenuItem(k, k);
-		}
 		configurationsMenu.addMenuItem("Open", openConfigurationMenu, null);
 		if (env != null && env.getEnvironmentConfiguration() != null) {
 			configurationsMenu.addMenuItem("Edit", Boolean.TRUE);
@@ -364,7 +362,48 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 		}
 		menu.addMenuItem("Configurations", configurationsMenu, null);
 
-		screen.addElement(menu);
+		app.getWorldLoaderExecutorService().execute(new Runnable() {
+
+			@Override
+			public String toString() {
+				return "Loading available environments";
+			}
+
+			@Override
+			public void run() {
+				for (String k : manager.getEnvironments()) {
+					app.enqueue(new Callable<Void>() {
+						@Override
+						public Void call() throws Exception {
+							environmentsMenu.addMenuItem(k, k);
+							return null;
+						}
+					});
+				}
+
+				for (String k : manager.getEnvironmentConfigurations()) {
+					app.enqueue(new Callable<Void>() {
+						@Override
+						public Void call() throws Exception {
+							openConfigurationMenu.addMenuItem(k, k);
+							return null;
+						}
+					});
+				}
+
+				app.enqueue(new Callable<Void>() {
+					@Override
+					public Void call() throws Exception {
+						loadingEnvironmentMenu = false;
+						setAvailable();
+						screen.addElement(menu);
+						menu.showMenu(null, x, y);
+						return null;
+					}
+				});
+			}
+		});
+
 		return menu;
 	}
 
@@ -380,7 +419,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			public void onButtonOkPressed(MouseButtonEvent evt, String text, boolean toggled) {
 				manager.newConfiguration(text, clazz);
 				hideWindow();
-				EditableEnvironmentSwitcherAppState sas = app.getStateManager().getState(EditableEnvironmentSwitcherAppState.class);
+				EditableEnvironmentSwitcherAppState sas = app.getStateManager()
+						.getState(EditableEnvironmentSwitcherAppState.class);
 				sas.setEnvironment(EnvPriority.VIEWING, text);
 				sas.setEdit(true);
 			}
@@ -400,7 +440,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 	}
 
 	private void editEnvironmentConfiguration() {
-		EditableEnvironmentSwitcherAppState sas = app.getStateManager().getState(EditableEnvironmentSwitcherAppState.class);
+		EditableEnvironmentSwitcherAppState sas = app.getStateManager()
+				.getState(EditableEnvironmentSwitcherAppState.class);
 		String config = sas.getEnvironmentConfiguration();
 		AbstractEnvironmentConfiguration envConfig = manager.getEnvironmentConfiguration(config);
 		if (envConfig.isEditable()) {
@@ -454,7 +495,9 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 	// }
 	// }
 
-	private ZMenu createTerrainMenu() {
+	private ZMenu createTerrainMenu(float x, float y) {
+		loadingMenu = true;
+		setAvailable();
 		ZMenu menu = new ZMenu(screen) {
 			@Override
 			public void onItemSelected(ZMenu.ZMenuItem item) {
@@ -472,8 +515,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 				} else if (item.getValue().equals(Boolean.FALSE)) {
 
 					if (loader.isNeedsSave()) {
-						final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE,
-								true) {
+						final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15),
+								FancyWindow.Size.LARGE, true) {
 							@Override
 							public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
 								hideWindow();
@@ -513,19 +556,48 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			menu.addMenuItem(Icelib.toEnglish(n), n);
 		}
 		menu.addMenuItem(null, new XSeparator(screen, Element.Orientation.HORIZONTAL), null).setSelectable(false);
-		for (String n : ((ServerAssetManager) app.getAssetManager()).getAssetNamesMatching(".*/Terrain-[a-zA-Z\\d[_]]*\\.cfg")) {
-			TerrainTemplateConfiguration cfg = TerrainTemplateConfiguration.get(assetManager, n);
-			if (!cfg.getBaseTemplateName().equals("Common") && !cfg.getBaseTemplateName().equals("Default")
-					&& !cfg.equals(loader.getTerrainTemplate())) {
-				ZMenuItem m = menu.addMenuItem(Icelib.toEnglish(cfg.getBaseTemplateName()), cfg);
-                if (((IcesceneApp) app).getAssets().isExternal(cfg.getAssetPath())) {
-                    m.getItemTextElement().setFontColor(ColorRGBA.Green);
-                }
+		app.getWorldLoaderExecutorService().execute(new Runnable() {
+
+			@Override
+			public String toString() {
+				return "Loading available terrain";
 			}
-		}
+
+			@Override
+			public void run() {
+				for (String n : ((ServerAssetManager) app.getAssetManager())
+						.getAssetNamesMatching(".*/Terrain-[a-zA-Z\\d[_]]*\\.cfg")) {
+					TerrainTemplateConfiguration cfg = TerrainTemplateConfiguration.get(assetManager, n);
+					if (!cfg.getBaseTemplateName().equals("Common") && !cfg.getBaseTemplateName().equals("Default")
+							&& !cfg.equals(loader.getTerrainTemplate())) {
+						app.enqueue(new Callable<Void>() {
+
+							@Override
+							public Void call() throws Exception {
+								ZMenuItem m = menu.addMenuItem(Icelib.toEnglish(cfg.getBaseTemplateName()), cfg);
+								if (((IcesceneApp) app).getAssets().isExternal(cfg.getAssetPath())) {
+									m.getItemTextElement().setFontColor(ColorRGBA.Green);
+								}
+								menu.sizeToContent();
+								return null;
+							}
+						});
+					}
+				}
+				app.enqueue(new Callable<Void>() {
+					@Override
+					public Void call() throws Exception {
+						loadingMenu = false;
+						setAvailable();
+						screen.addElement(menu);
+						menu.showMenu(null, x, y);
+						return null;
+					}
+				});
+			}
+		});
 
 		// Show menu
-		screen.addElement(menu);
 		return menu;
 	}
 
@@ -569,14 +641,14 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 					cloneTerrainTemplate(CloneType.iceclient, sourceTemplate, terrainName, terrainDir,
 							MenuAppState.this.app.getAssets().getExternalAssetsFolder(), new OnCloneCallback() {
 
-						@Override
-						public void run(TerrainTemplateConfiguration targetTemplate, FancyWindow input) {
-							setAvailable();
-							input.hideWindow();
-							loadTerrainTemplate(targetTemplate, true);
+								@Override
+								public void run(TerrainTemplateConfiguration targetTemplate, FancyWindow input) {
+									setAvailable();
+									input.hideWindow();
+									loadTerrainTemplate(targetTemplate, true);
 
-						}
-					});
+								}
+							});
 				}
 			}
 		};
@@ -614,22 +686,23 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 					File outDir = new File(new File(System.getProperty("java.io.tmpdir")),
 							System.getProperty("user.name") + ".terexp");
 					LOG.info(String.format("New terrain directory will be %s", outDir));
-					cloneTerrainTemplate(CloneType.official, template, text.replace(" ", "").replace("/", "").replace("\\", ""),
-							"Terrain-" + text, outDir, new OnCloneCallback() {
+					cloneTerrainTemplate(CloneType.official, template,
+							text.replace(" ", "").replace("/", "").replace("\\", ""), "Terrain-" + text, outDir,
+							new OnCloneCallback() {
 
-						@Override
-						public void run(TerrainTemplateConfiguration targetTemplate, FancyWindow input) {
-							setAvailable();
-							input.hideWindow();
-							try {
-								Zip.compress(outDir, sel.getSelectedFile());
-							} catch (Exception e) {
-								LOG.log(Level.SEVERE, "Failed to export.", e);
-								error("Failed to export.", e);
-							}
-							clearUpClonedDirectory();
-						}
-					});
+								@Override
+								public void run(TerrainTemplateConfiguration targetTemplate, FancyWindow input) {
+									setAvailable();
+									input.hideWindow();
+									try {
+										Zip.compress(outDir, sel.getSelectedFile());
+									} catch (Exception e) {
+										LOG.log(Level.SEVERE, "Failed to export.", e);
+										error("Failed to export.", e);
+									}
+									clearUpClonedDirectory();
+								}
+							});
 
 				}
 				;
@@ -662,7 +735,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			LOG.info(String.format("Local, terrain folder %s does not exist, offering to clone",
 					localTerrainFolder.getAbsolutePath()));
 
-			final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE, true) {
+			final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE,
+					true) {
 				@Override
 				public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
 					hideWindow();
@@ -717,10 +791,12 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 		cloningTerrainDirFile = new File(targetDir, terrainDir.replace("/", File.separator));
 
 		String assetPattern = String.format("%s/.*", sourceTemplate.getAssetFolder());
-		final Set<IndexItem> assetsMatching = ((ServerAssetManager) app.getAssetManager()).getAssetsMatching(assetPattern);
+		final Set<IndexItem> assetsMatching = ((ServerAssetManager) app.getAssetManager())
+				.getAssetsMatching(assetPattern);
 
-		/* Some template folder have multiple terrains in them. Regexp patterns are
-		 *  used to validate 
+		/*
+		 * Some template folder have multiple terrains in them. Regexp patterns
+		 * are used to validate
 		 */
 		String configPattern = sourceTemplate.getPerPageConfig().replace("%d", "\\d+");
 		String basePattern = sourceTemplate.getTextureBaseFormat().replace("%d", "\\d+");
@@ -836,40 +912,40 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 							if (basename.startsWith(baseSourceTemplateName + "_Base_")) {
 								String coordsAndExt = basename.substring(baseSourceTemplateName.length() + 6);
 								if (cloneType == CloneType.official)
-									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-" + newBaseTemplateName
-											+ "_" + FilenameUtils.getBaseName(coordsAndExt) + "/" + newBaseTemplateName + "_Base_"
-											+ coordsAndExt;
+									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
+											+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt) + "/"
+											+ newBaseTemplateName + "_Base_" + coordsAndExt;
 								else
 									name = terrainDir + "/" + newBaseTemplateName + "_Base_" + coordsAndExt;
 							} else if (basename.startsWith(baseSourceTemplateName + "_Coverage_")) {
 
 								String coordsAndExt = basename.substring(baseSourceTemplateName.length() + 10);
 								if (cloneType == CloneType.official)
-									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-" + newBaseTemplateName
-											+ "_" + FilenameUtils.getBaseName(coordsAndExt) + "/" + newBaseTemplateName
-											+ "_Coverage_" + coordsAndExt;
+									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
+											+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt) + "/"
+											+ newBaseTemplateName + "_Coverage_" + coordsAndExt;
 								else
 									name = terrainDir + "/" + newBaseTemplateName + "_Coverage_" + coordsAndExt;
 							} else if (basename.startsWith(baseSourceTemplateName + "_Height_")) {
 								String coordsAndExt = basename.substring(baseSourceTemplateName.length() + 8);
 								if (cloneType == CloneType.official)
-									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-" + newBaseTemplateName
-											+ "_" + FilenameUtils.getBaseName(coordsAndExt) + "/" + newBaseTemplateName + "_Height_"
-											+ coordsAndExt;
+									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
+											+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt) + "/"
+											+ newBaseTemplateName + "_Height_" + coordsAndExt;
 								else
 									name = terrainDir + "/" + newBaseTemplateName + "_Height_" + coordsAndExt;
 							} else if (basename.startsWith(baseSourceTemplateName + "_Texture_")) {
 								String coordsAndExt = basename.substring(baseSourceTemplateName.length() + 9);
 								if (cloneType == CloneType.official)
-									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-" + newBaseTemplateName
-											+ "_" + FilenameUtils.getBaseName(coordsAndExt) + "/" + newBaseTemplateName
-											+ "_Texture_" + coordsAndExt;
+									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
+											+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt) + "/"
+											+ newBaseTemplateName + "_Texture_" + coordsAndExt;
 								else
 									name = terrainDir + "/" + newBaseTemplateName + "_Texture_" + coordsAndExt;
 							} else if (basename.equals("Terrain-" + baseSourceTemplateName + ".nut")) {
 								if (cloneType == CloneType.official)
-									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-" + newBaseTemplateName
-											+ "/Terrain-" + newBaseTemplateName + ".nut";
+									name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
+											+ newBaseTemplateName + "/Terrain-" + newBaseTemplateName + ".nut";
 								else
 									name = terrainDir + "/Terrain-" + newBaseTemplateName + ".nut";
 							} else {
@@ -877,19 +953,20 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 								if (basename.startsWith(baseSourceTemplateName + "_") && basename.endsWith(".nut")) {
 									if (cloneType == CloneType.official)
 										name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
-												+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt) + "/"
-												+ newBaseTemplateName + "_" + coordsAndExt;
+												+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt)
+												+ "/" + newBaseTemplateName + "_" + coordsAndExt;
 									else
 										name = terrainDir + "/" + newBaseTemplateName + "_" + coordsAndExt;
 								} else if (basename.startsWith(baseSourceTemplateName + "_")) {
 									if (cloneType == CloneType.official)
 										name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
-												+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt) + "/"
-												+ newBaseTemplateName + "_" + coordsAndExt;
+												+ newBaseTemplateName + "_" + FilenameUtils.getBaseName(coordsAndExt)
+												+ "/" + newBaseTemplateName + "_" + coordsAndExt;
 									else
 										name = terrainDir + "/" + newBaseTemplateName + "_" + coordsAndExt;
 								} else {
-									LOG.warning(String.format("Unsure how to rename file %s in %s", basename, terrainDir));
+									LOG.warning(
+											String.format("Unsure how to rename file %s in %s", basename, terrainDir));
 									if (cloneType == CloneType.official)
 										name = FilenameUtils.getFullPathNoEndSeparator(terrainDir) + "/Terrain-"
 												+ newBaseTemplateName + "/" + basename;
@@ -937,7 +1014,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 										}
 									}
 
-									private void showUpdate(final Indicator overallProgress, final ThreadLocal<Long> total) {
+									private void showUpdate(final Indicator overallProgress,
+											final ThreadLocal<Long> total) {
 										final long fTot = total.get();
 										app.enqueue(new Callable<Void>() {
 											public Void call() throws Exception {
@@ -1009,14 +1087,18 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 	}
 
 	private void setAvailable() {
-		terrain.setIsEnabled(!cloning);
+
+		environment.setIsEnabled(!cloning && !loadingMenu && !loadingEnvironmentMenu);
+		terrain.setIsEnabled(!cloning && !loadingMenu && !loadingEnvironmentMenu);
 		options.setIsEnabled(!cloning);
-		map.setIsEnabled(!cloning && loader.getDefaultTerrainTemplate() != null);
+		map.setIsEnabled(
+				!cloning && !loadingMenu && !loadingEnvironmentMenu && loader.getDefaultTerrainTemplate() != null);
 	}
 
 	private void exitApp() {
 		if (loader.isNeedsSave()) {
-			final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE, true) {
+			final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE,
+					true) {
 				@Override
 				public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
 					hideWindow();
@@ -1053,8 +1135,9 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 
 		// Find the lowest number tile in the terrain to be the default start
 		// position
-		final Set<String> assetsMatching = ((ServerAssetManager) app.getAssetManager()).getAssetNamesMatching(String
-				.format(".*/Terrain-%1$s/%2$s_Height_x.*", template.getTerrainTemplateGroup(), template.getBaseTemplateName()));
+		final Set<String> assetsMatching = ((ServerAssetManager) app.getAssetManager())
+				.getAssetNamesMatching(String.format(".*/Terrain-%1$s/%2$s_Height_x.*",
+						template.getTerrainTemplateGroup(), template.getBaseTemplateName()));
 		int minX = 0;
 		int minY = 0;
 		int minVal = Integer.MAX_VALUE;
@@ -1074,7 +1157,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 				minVal = val;
 			}
 		}
-		Vector3f defaultLocation = new Vector3f(template.getPageWorldX() * minX, 36.0f, template.getPageWorldZ() * minY);
+		Vector3f defaultLocation = new Vector3f(template.getPageWorldX() * minX, 36.0f,
+				template.getPageWorldZ() * minY);
 		LOG.info("Default start position for this is " + minX + "," + minY + " ( " + defaultLocation + ")");
 
 		// See if there is a last know position for this template
@@ -1082,15 +1166,17 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 		Quaternion defaultRotation = new Quaternion();
 		defaultRotation.fromAngles(0, FastMath.HALF_PI, 0);
 		Vector3f position = new Vector3f(node.getFloat("cameraLocationX", defaultLocation.x),
-				node.getFloat("cameraLocationY", defaultLocation.y), node.getFloat("cameraLocationZ", defaultLocation.z));
+				node.getFloat("cameraLocationY", defaultLocation.y),
+				node.getFloat("cameraLocationZ", defaultLocation.z));
 		LOG.info(String.format("Chosen start position for the camera is %s", position));
 		defaultRotation = new Quaternion(node.getFloat("cameraRotationX", defaultRotation.getX()),
-				node.getFloat("cameraRotationY", defaultRotation.getY()), node.getFloat("cameraRotationZ", defaultRotation.getZ()),
+				node.getFloat("cameraRotationY", defaultRotation.getY()),
+				node.getFloat("cameraRotationZ", defaultRotation.getZ()),
 				node.getFloat("cameraRotationW", defaultRotation.getW()));
-				// app.getCamera().setLocation(
-				// position);
-				// app.getCamera().setRotation(
-				// defaultRotation);
+		// app.getCamera().setLocation(
+		// position);
+		// app.getCamera().setRotation(
+		// defaultRotation);
 
 		// Setting the template fires an event which is picked up in the
 		// application, which
@@ -1106,7 +1192,8 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 				LOG.info(String.format("Clearing up partially cloned directory %s", cloningTerrainDirFile));
 				FileUtils.deleteDirectory(cloningTerrainDirFile);
 			} catch (IOException ex) {
-				LOG.log(Level.SEVERE, String.format("Failed to clearing up partially cloned directory.%", cloningTerrainDirFile));
+				LOG.log(Level.SEVERE,
+						String.format("Failed to clearing up partially cloned directory.%", cloningTerrainDirFile));
 			} finally {
 				cloningTerrainDirFile = null;
 			}
