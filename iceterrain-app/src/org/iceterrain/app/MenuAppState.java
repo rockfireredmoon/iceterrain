@@ -7,7 +7,9 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
@@ -17,6 +19,7 @@ import java.util.prefs.Preferences;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.icelib.AppInfo;
 import org.icelib.Icelib;
 import org.icelib.XDesktop;
 import org.icelib.Zip;
@@ -44,19 +47,15 @@ import org.iceterrain.TerrainLoader;
 import org.iceterrain.TerrainLoader.Listener;
 import org.iceterrain.maps.TerrainMapAppState;
 import org.iceui.XFileSelector;
-import org.iceui.controls.FancyButton;
-import org.iceui.controls.FancyDialogBox;
-import org.iceui.controls.FancyInputBox;
-import org.iceui.controls.FancyWindow;
-import org.iceui.controls.UIUtil;
-import org.iceui.controls.XSeparator;
-import org.iceui.controls.ZMenu;
-import org.iceui.controls.ZMenu.ZMenuItem;
+import org.iceui.actions.ActionAppState;
+import org.iceui.actions.ActionMenu;
+import org.iceui.actions.ActionMenuBar;
+import org.iceui.actions.AppAction;
+import org.iceui.controls.ElementStyle;
 
 import com.jme3.asset.AssetInfo;
 import com.jme3.asset.AssetKey;
 import com.jme3.input.event.MouseButtonEvent;
-import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector2f;
@@ -65,46 +64,55 @@ import com.jme3.scene.Node;
 
 import icemoon.iceloader.IndexItem;
 import icemoon.iceloader.ServerAssetManager;
+import icetone.controls.buttons.PushButton;
+import icetone.controls.containers.Frame;
 import icetone.controls.extras.Indicator;
 import icetone.controls.text.Label;
-import icetone.core.Container;
-import icetone.core.Element;
-import icetone.core.Element.ZPriority;
+import icetone.core.BaseElement;
+import icetone.core.Orientation;
+import icetone.core.layout.ScreenLayoutConstraints;
 import icetone.core.layout.mig.MigLayout;
+import icetone.extras.windows.AlertBox;
+import icetone.extras.windows.DialogBox;
+import icetone.extras.windows.InputBox;
 
-public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements Listener {
-
-	public interface OnCloneCallback {
-		void run(TerrainTemplateConfiguration targetTemplate, FancyWindow input);
-	}
+public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>>
+		implements Listener, org.iceskies.environment.EnvironmentSwitcherAppState.Listener {
 
 	public enum CloneType {
-		iceclient, official
+		official, iceclient
 	}
 
-	public enum MenuActions {
-
-		OPEN_TERRAIN_FOLDER
+	public interface OnCloneCallback {
+		void run(TerrainTemplateConfiguration targetTemplate, Frame input);
 	}
 
 	private static final Logger LOG = Logger.getLogger(MenuAppState.class.getName());
-	private Container layer;
-	private final TerrainLoader loader;
-	private boolean cloning;
-	private FancyButton terrain;
-	private FancyButton options;
-	private FancyButton exit;
-	private File cloningTerrainDirFile;
-	private Thread cloneThread;
-	private FancyButton help;
-	private FancyButton environment;
-	private EnvironmentManager manager;
-	private FancyButton map;
-	private boolean loadingMenu;
-	private boolean loadingEnvironmentMenu;
 
 	@ServiceRef
 	protected static Environments environments;
+
+	private EnvironmentManager manager;
+	private TerrainLoader loader;
+	private boolean cloning;
+	private Thread cloneThread;
+	private boolean loading;
+
+	private ActionMenuBar menuBar;
+
+	private File cloningTerrainDirFile;
+
+	private AppAction close;
+
+	private AppAction map;
+
+	private AppAction export;
+
+	private AppAction timeOfDay;
+
+	private AppAction editEnvironment;
+
+	private AppAction editEnvironmentConfiguration;
 
 	public MenuAppState(TerrainLoader loader, Preferences prefs, EnvironmentLight environmentLight, Node gameNode,
 			Node weatherNode) {
@@ -113,114 +121,214 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 	}
 
 	@Override
-	protected void postInitialize() {
-		manager = EnvironmentManager.get(assetManager);
-
-		layer = new Container(screen);
-		layer.setLayoutManager(new MigLayout(screen, "fill", "push[][][][][][]push", "[]push"));
-
-		// Terrain
-		terrain = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				createTerrainMenu(evt.getX(), evt.getY());
-			}
-		};
-		terrain.setText("Terrain");
-		layer.addChild(terrain);
-		// Terrain
-		environment = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				createEnvironmentMenu(evt.getX(), evt.getY());
-			}
-		};
-		environment.setText("Environment");
-		layer.addChild(environment);
-
-		// Options
-		map = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				toggleMap();
-			}
-		};
-		map.setText("Map");
-		layer.addChild(map);
-
-		// Options
-		options = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				toggleOptions();
-			}
-		};
-		options.setText("Options");
-		layer.addChild(options);
-
-		// Help
-		help = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				help();
-			}
-		};
-		help.setText("Help");
-		layer.addChild(help);
-
-		// Exit
-		exit = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				exitApp();
-			}
-		};
-		exit.setText("Exit");
-		layer.addChild(exit);
-
-		//
-		app.getLayers(ZPriority.MENU).addChild(layer);
-
-		loader.addListener(this);
+	public void templateChanged(TerrainTemplateConfiguration templateConfiguration, Vector3f initialLocation,
+			Quaternion initialRotation) {
 		setAvailable();
 	}
 
 	@Override
+	public void terrainReload() {
+	}
+
+	@Override
+	public void tileLoaded(TerrainInstance instance) {
+	}
+
+	@Override
+	public void tileUnloaded(TerrainInstance instance) {
+	}
+
+	@Override
+	protected void postInitialize() {
+		manager = EnvironmentManager.get(assetManager);
+
+		ActionAppState appState = app.getStateManager().getState(ActionAppState.class);
+		menuBar = appState.getMenuBar();
+		menuBar.invalidate();
+
+		/* Menus */
+		menuBar.addActionMenu(new ActionMenu("File", 0));
+		menuBar.addActionMenu(new ActionMenu("Terrain", 10));
+		menuBar.addActionMenu(new ActionMenu("Environment", 20));
+		menuBar.addActionMenu(new ActionMenu("Help", 30));
+
+		/* Actions */
+		menuBar.addAction(new AppAction("Open Terrain Folder", evt -> openTerrainFolder()).setMenu("File"));
+		menuBar.addAction(close = new AppAction("Close Terrain", evt -> closeTerrain()).setMenu("File"));
+		menuBar.addAction(export = new AppAction("Export Terrain",
+				evt -> exportTerrainTemplate(loader.getDefaultTerrainTemplate())).setMenu("File"));
+		menuBar.addAction(map = new AppAction("Map", evt -> toggleMap()).setMenu("File"));
+		menuBar.addAction(new AppAction("Options", evt -> toggleOptions()).setMenu("File").setMenuGroup(80));
+		menuBar.addAction(new AppAction("Exit", evt -> exitApp()).setMenu("File").setMenuGroup(99));
+
+		/* Environment menu */
+		menuBar.addAction(new AppAction("New", evt -> newEnvironment()).setMenu("Environment"));
+		menuBar.addAction(new AppAction(new ActionMenu("Open")).setMenu("Environment"));
+		menuBar.addAction(editEnvironment = new AppAction("Edit", evt -> editEnvironment()).setMenu("Environment"));
+		menuBar.addAction(new AppAction("Close", evt -> stateManager.getState(EnvironmentSwitcherAppState.class)
+				.setEnvironment(EnvPriority.VIEWING, null)).setMenu("Environment"));
+		menuBar.addAction(new AppAction(new ActionMenu("Configurations")).setMenu("Environment"));
+		menuBar.addAction(timeOfDay = new AppAction(new ActionMenu("Time Of Day")).setMenu("Environment"));
+
+		/* Time Of Day */
+		menuBar.addAction(
+				new AppAction(Icelib.toEnglish(EnvironmentPhase.SUNRISE), evt -> setPhase(EnvironmentPhase.SUNRISE))
+						.setMenu("Time Of Day"));
+		menuBar.addAction(new AppAction(Icelib.toEnglish(EnvironmentPhase.DAY), evt -> setPhase(EnvironmentPhase.DAY))
+				.setMenu("Time Of Day"));
+		menuBar.addAction(
+				new AppAction(Icelib.toEnglish(EnvironmentPhase.SUNSET), evt -> setPhase(EnvironmentPhase.SUNSET))
+						.setMenu("Time Of Day"));
+		menuBar.addAction(
+				new AppAction(Icelib.toEnglish(EnvironmentPhase.NIGHT), evt -> setPhase(EnvironmentPhase.NIGHT))
+						.setMenu("Time Of Day"));
+
+		/* Environment configurations */
+		menuBar.addAction(new AppAction(new ActionMenu("New")).setMenu("Configurations"));
+		menuBar.addAction(
+				new AppAction("Enhanced", evt -> newEnvironmentConfiguration(EnhancedEnvironmentConfiguration.class))
+						.setMenu("New"));
+		menuBar.addAction(
+				new AppAction("Legacy", evt -> newEnvironmentConfiguration(LegacyEnvironmentConfiguration.class))
+						.setMenu("New"));
+		menuBar.addAction(editEnvironmentConfiguration = new AppAction("Edit", evt -> editEnvironmentConfiguration())
+				.setMenu("Configurations"));
+		menuBar.addAction(new AppAction(new ActionMenu("Open Configuration")).setMenu("Configurations"));
+
+		/* Help Actions */
+		menuBar.addAction(new AppAction("Contents", evt -> help()).setMenu("Help"));
+		menuBar.addAction(new AppAction("About", evt -> helpAbout()).setMenu("Help"));
+
+		menuBar.validate();
+
+		/* Initial availability */
+		loading = true;
+		setAvailable();
+
+		/* Listen for sky changes */
+		EnvironmentSwitcherAppState state = app.getStateManager().getState(EnvironmentSwitcherAppState.class);
+		if (state != null)
+			state.addListener(this);
+
+		/* Background load the terrain menu */
+
+		app.getWorldLoaderExecutorService().execute(new Runnable() {
+
+			@Override
+			public String toString() {
+				return "Loading available terrain and environments";
+			}
+
+			@Override
+			public void run() {
+
+				final List<AppAction> actions = new ArrayList<>();
+
+				for (String n : ((ServerAssetManager) app.getAssetManager())
+						.getAssetNamesMatching(".*/Terrain-[a-zA-Z\\d[_]]*\\.cfg")) {
+					TerrainTemplateConfiguration cfg = TerrainTemplateConfiguration.get(assetManager, n);
+					if (!cfg.getBaseTemplateName().equals("Common") && !cfg.getBaseTemplateName().equals("Default")
+							&& !cfg.equals(loader.getTerrainTemplate())) {
+						boolean external = ((IcesceneApp) app).getAssets().isExternal(cfg.getAssetPath());
+						actions.add(new AppAction(Icelib.toEnglish(cfg.getBaseTemplateName()),
+								evt -> validateTerrainTemplate(cfg)).setMenu("Terrain")
+										.setMenuGroup(external ? 0 : 10));
+					}
+				}
+
+				for (String k : manager.getEnvironments()) {
+					actions.add(new AppAction(k, evt -> stateManager.getState(EnvironmentSwitcherAppState.class)
+							.setEnvironment(EnvPriority.VIEWING, k)).setMenu("Open"));
+				}
+
+				List<String> envs = manager.getEnvironmentConfigurations();
+				for (String k : envs) {
+					actions.add(new AppAction(k, evt -> {
+						final EnvironmentSwitcherAppState env = stateManager
+								.getState(EnvironmentSwitcherAppState.class);
+						if (env instanceof EditableEnvironmentSwitcherAppState
+								&& ((EditableEnvironmentSwitcherAppState) env).isEdit())
+							env.setEnvironment(EnvPriority.EDITING, k);
+						else
+							env.setEnvironment(EnvPriority.VIEWING, k);
+					}).setMenu("Open Configuration"));
+				}
+
+				app.enqueue(new Callable<Void>() {
+					@Override
+					public Void call() throws Exception {
+						menuBar.invalidate();
+						actions.forEach((a) -> menuBar.addAction(a));
+						menuBar.validate();
+						loading = false;
+						setAvailable();
+						return null;
+					}
+				});
+			}
+		});
+
+		loader.addListener(this);
+	}
+
+	protected void setPhase(EnvironmentPhase phase) {
+		EnvironmentSwitcherAppState sas = app.getStateManager().getState(EnvironmentSwitcherAppState.class);
+		sas.setPhase(phase);
+	}
+
+	@Override
 	protected void onCleanup() {
-		app.getLayers(ZPriority.MENU).removeChild(layer);
 		loader.removeListener(this);
+		EnvironmentSwitcherAppState state = app.getStateManager().getState(EnvironmentSwitcherAppState.class);
+		if (state != null)
+			state.addListener(this);
 	}
 
-	private void help() {
-		HelpAppState has = app.getStateManager().getState(HelpAppState.class);
-		if (has == null) {
-			app.getStateManager().attach(new HelpAppState(prefs));
-		} else {
-			app.getStateManager().detach(has);
-		}
-	}
+	private void newEnvironmentConfiguration(final Class<? extends AbstractEnvironmentConfiguration> clazz) {
+		final InputBox dialog = new InputBox(screen, new Vector2f(15, 15), true) {
+			{
+				setStyleClass("large");
+			}
 
-	private void toggleMap() {
-		TerrainMapAppState as = app.getStateManager().getState(TerrainMapAppState.class);
-		if (as == null) {
-			app.getStateManager().attach(new TerrainMapAppState(app.getPreferences()));
-		} else {
-			app.getStateManager().detach(as);
-		}
-	}
+			@Override
+			public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
+				hide();
+			}
 
-	private void toggleOptions() {
-		final OptionsAppState state = stateManager.getState(OptionsAppState.class);
-		if (state == null) {
-			stateManager.attach(new OptionsAppState(prefs));
-		} else {
-			stateManager.detach(state);
-		}
+			@Override
+			public void onButtonOkPressed(MouseButtonEvent evt, String text, boolean toggled) {
+				manager.newConfiguration(text, clazz);
+				hide();
+				EditableEnvironmentSwitcherAppState sas = app.getStateManager()
+						.getState(EditableEnvironmentSwitcherAppState.class);
+				sas.setEnvironment(EnvPriority.VIEWING, text);
+				sas.setEdit(true);
+			}
+		};
+		dialog.setDestroyOnHide(true);
+		ElementStyle.warningColor(dialog.getDragBar());
+		dialog.setWindowTitle("New Environment");
+		dialog.setButtonOkText("Create");
+		dialog.setMsg("");
+		dialog.setModal(true);
+		screen.showElement(dialog, ScreenLayoutConstraints.center);
 	}
 
 	private void newEnvironment() {
 		changeEnvironment("New Environment");
 
+	}
+
+	private void editEnvironmentConfiguration() {
+		EditableEnvironmentSwitcherAppState sas = app.getStateManager()
+				.getState(EditableEnvironmentSwitcherAppState.class);
+		String config = sas.getEnvironmentConfiguration();
+		AbstractEnvironmentConfiguration envConfig = manager.getEnvironmentConfiguration(config);
+		if (envConfig.isEditable()) {
+			sas.setEdit(true);
+		} else {
+			error("This type of environment is not currently editable using the sky editor.");
+		}
 	}
 
 	private void editEnvironment() {
@@ -267,410 +375,24 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 		;
 	}
 
-	private ZMenu createEnvironmentMenu(float x, float y) {
-		loadingEnvironmentMenu = true;
-		setAvailable();
-
-		final EnvironmentSwitcherAppState env = stateManager.getState(EnvironmentSwitcherAppState.class);
-		ZMenu menu = new ZMenu(screen) {
-			@Override
-			public void onItemSelected(ZMenuItem item) {
-				super.onItemSelected(item);
-				if (Boolean.FALSE.equals(item.getValue())) {
-					env.setEnvironment(EnvPriority.VIEWING, null);
-				} else if (Boolean.TRUE.equals(item.getValue())) {
-					editEnvironment();
-				} else if (item.getValue() == String.class) {
-					newEnvironment();
-				}
-			}
-
-		};
-		// Environments
-		ZMenu environmentsMenu = new ZMenu(screen) {
-			@Override
-			public void onItemSelected(ZMenuItem item) {
-				env.setEnvironment(EnvPriority.VIEWING, ((String) item.getValue()));
-			}
-		};
-		menu.addMenuItem("Open", environmentsMenu, null);
-
-		menu.addMenuItem("New Environment", null, String.class);
-		if (env != null && env.getEnvironment() != null) {
-			menu.addMenuItem("Edit", Boolean.TRUE);
-			menu.addMenuItem("Close", Boolean.FALSE);
-		}
-
-		// Set current time of day
-		ZMenu timeOfDay = new ZMenu(screen) {
-			@Override
-			public void onItemSelected(ZMenuItem item) {
-				EnvironmentSwitcherAppState sas = app.getStateManager().getState(EnvironmentSwitcherAppState.class);
-				sas.setPhase((EnvironmentPhase) item.getValue());
-			}
-		};
-		timeOfDay.addMenuItem(Icelib.toEnglish(EnvironmentPhase.SUNRISE), EnvironmentPhase.SUNRISE);
-		timeOfDay.addMenuItem(Icelib.toEnglish(EnvironmentPhase.DAY), EnvironmentPhase.DAY);
-		timeOfDay.addMenuItem(Icelib.toEnglish(EnvironmentPhase.SUNSET), EnvironmentPhase.SUNSET);
-		timeOfDay.addMenuItem(Icelib.toEnglish(EnvironmentPhase.NIGHT), EnvironmentPhase.NIGHT);
-		menu.addMenuItem("Set Time Of Day", timeOfDay, null);
-		menu.addMenuItem(null, new XSeparator(screen, Element.Orientation.HORIZONTAL), null).setSelectable(false);
-		// Environment configurations (that make up 'Environments')
-		ZMenu configurationsMenu = new ZMenu(screen) {
-			@Override
-			public void onItemSelected(ZMenuItem item) {
-				if (Boolean.FALSE.equals(item.getValue())) {
-					if (env instanceof EditableEnvironmentSwitcherAppState
-							&& ((EditableEnvironmentSwitcherAppState) env).isEdit())
-						env.setEnvironment(EnvPriority.EDITING, null);
-					else
-						env.setEnvironment(EnvPriority.VIEWING, null);
-				} else if (Boolean.TRUE.equals(item.getValue())) {
-					editEnvironmentConfiguration();
-				}
-			}
-		};
-
-		// New environment configuration
-		ZMenu newConfig = new ZMenu(screen) {
-			@SuppressWarnings("unchecked")
-			@Override
-			public void onItemSelected(ZMenuItem item) {
-				newEnvironmentConfiguration((Class<? extends AbstractEnvironmentConfiguration>) item.getValue());
-			}
-		};
-		newConfig.addMenuItem("Enhanced", EnhancedEnvironmentConfiguration.class);
-		newConfig.addMenuItem("Legacy", LegacyEnvironmentConfiguration.class);
-		configurationsMenu.addMenuItem("New", newConfig, null).setSelectable(false);
-
-		// Environments
-		ZMenu openConfigurationMenu = new ZMenu(screen) {
-			@Override
-			public void onItemSelected(ZMenuItem item) {
-				EnvironmentSwitcherAppState sas = app.getStateManager().getState(EnvironmentSwitcherAppState.class);
-				if (env instanceof EditableEnvironmentSwitcherAppState
-						&& ((EditableEnvironmentSwitcherAppState) env).isEdit())
-					sas.setEnvironment(EnvPriority.EDITING, ((String) item.getValue()));
-				else
-					sas.setEnvironment(EnvPriority.VIEWING, ((String) item.getValue()));
-			}
-		};
-		configurationsMenu.addMenuItem("Open", openConfigurationMenu, null);
-		if (env != null && env.getEnvironmentConfiguration() != null) {
-			configurationsMenu.addMenuItem("Edit", Boolean.TRUE);
-			configurationsMenu.addMenuItem("Close", Boolean.FALSE);
-		}
-		menu.addMenuItem("Configurations", configurationsMenu, null);
-
-		app.getWorldLoaderExecutorService().execute(new Runnable() {
-
-			@Override
-			public String toString() {
-				return "Loading available environments";
-			}
-
-			@Override
-			public void run() {
-				for (String k : manager.getEnvironments()) {
-					app.enqueue(new Callable<Void>() {
-						@Override
-						public Void call() throws Exception {
-							environmentsMenu.addMenuItem(k, k);
-							return null;
-						}
-					});
-				}
-
-				for (String k : manager.getEnvironmentConfigurations()) {
-					app.enqueue(new Callable<Void>() {
-						@Override
-						public Void call() throws Exception {
-							openConfigurationMenu.addMenuItem(k, k);
-							return null;
-						}
-					});
-				}
-
-				app.enqueue(new Callable<Void>() {
-					@Override
-					public Void call() throws Exception {
-						loadingEnvironmentMenu = false;
-						setAvailable();
-						screen.addElement(menu);
-						menu.showMenu(null, x, y);
-						return null;
-					}
-				});
-			}
-		});
-
-		return menu;
-	}
-
-	private void newEnvironmentConfiguration(final Class<? extends AbstractEnvironmentConfiguration> clazz) {
-
-		final FancyInputBox dialog = new FancyInputBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE, true) {
-			@Override
-			public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-				hideWindow();
-			}
-
-			@Override
-			public void onButtonOkPressed(MouseButtonEvent evt, String text, boolean toggled) {
-				manager.newConfiguration(text, clazz);
-				hideWindow();
-				EditableEnvironmentSwitcherAppState sas = app.getStateManager()
-						.getState(EditableEnvironmentSwitcherAppState.class);
-				sas.setEnvironment(EnvPriority.VIEWING, text);
-				sas.setEdit(true);
-			}
-		};
-		dialog.setDestroyOnHide(true);
-		dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
-		dialog.setWindowTitle("New Environment");
-		dialog.setButtonOkText("Create");
-		dialog.setMsg("");
-		dialog.sizeToContent();
-		dialog.setWidth(300);
-		dialog.setIsResizable(false);
-		dialog.setIsMovable(false);
-		UIUtil.center(screen, dialog);
-		screen.addElement(dialog, null, true);
-		dialog.showAsModal(true);
-	}
-
-	private void editEnvironmentConfiguration() {
-		EditableEnvironmentSwitcherAppState sas = app.getStateManager()
-				.getState(EditableEnvironmentSwitcherAppState.class);
-		String config = sas.getEnvironmentConfiguration();
-		AbstractEnvironmentConfiguration envConfig = manager.getEnvironmentConfiguration(config);
-		if (envConfig.isEditable()) {
-			sas.setEdit(true);
+	private void toggleMap() {
+		TerrainMapAppState as = app.getStateManager().getState(TerrainMapAppState.class);
+		if (as == null) {
+			app.getStateManager().attach(new TerrainMapAppState(app.getPreferences()));
 		} else {
-			error("This type of environment is not currently editable using the sky editor.");
+			app.getStateManager().detach(as);
 		}
-	}
-
-	// private void selectEnvironment(ZMenuItem item) {
-	// TerrainTemplateConfiguration terrainTemplate =
-	// loader.getTerrainTemplate();
-	// EnvironmentKey key;
-	// if (item.getValue() instanceof EnvironmentKey) {
-	// key = (EnvironmentKey) item.getValue();
-	// } else {
-	// EnvironmentConfiguration cfg = (EnvironmentConfiguration)
-	// item.getValue();
-	// key = cfg.getKey();
-	// }
-	// if (terrainTemplate == null ||
-	// terrainTemplate.equals(loader.getGlobalTerrainTemplate())) {
-	// app.getStateManager().getState(EnvironmentSwitcherAppState.class).setEnvironment(Priority.GLOBAL,
-	// key);
-	// } else if (loader.isReadOnly()) {
-	// app.getStateManager().getState(EnvironmentSwitcherAppState.class).setEnvironment(Priority.USER,
-	// key);
-	// } else {
-	// app.getStateManager().getState(EnvironmentSwitcherAppState.class).setEnvironment(Priority.DEFAULT_FOR_TERRAIN,
-	// key);
-	// terrainTemplate.setEnvironment(key.getEnvironmentName());
-	// File cfgDir =
-	// TerrainEditorAppState.getDirectoryForTerrainTemplate(app.getAssets(),
-	// terrainTemplate);
-	// try {
-	// DOSWriter fos = new DOSWriter(new FileOutputStream(new File(cfgDir,
-	// String.format("%s.nut",
-	// terrainTemplate.getBaseTemplateName()))));
-	// try {
-	// fos.println(String.format("TerrainTemplate.setEnvironment(\"%s\");",
-	// key.getEnvironmentName()));
-	// } finally {
-	// fos.close();
-	// }
-	// info(String.format("Set environment of %s to %s.",
-	// terrainTemplate.getBaseTemplateName(), key.getEnvironmentName()));
-	// } catch (Exception e) {
-	// LOG.log(Level.SEVERE, "Failed to save environment script.", e);
-	// error("Failed to save environment script.", e);
-	// }
-	// }
-	// }
-
-	private ZMenu createTerrainMenu(float x, float y) {
-		loadingMenu = true;
-		setAvailable();
-		ZMenu menu = new ZMenu(screen) {
-			@Override
-			public void onItemSelected(ZMenu.ZMenuItem item) {
-				super.onItemSelected(item);
-				if (item.getValue().equals(MenuActions.OPEN_TERRAIN_FOLDER)) {
-					final File terrainFolder = getTerrainFolder();
-					try {
-						XDesktop.getDesktop().open(terrainFolder);
-					} catch (IOException ex) {
-						LOG.log(Level.SEVERE, String.format("Failed to open terrain folder %s", terrainFolder), ex);
-						error(String.format("Failed to open terrain folder %s", terrainFolder), ex);
-					}
-				} else if (item.getValue().equals(Boolean.TRUE)) {
-					exportTerrainTemplate(loader.getDefaultTerrainTemplate());
-				} else if (item.getValue().equals(Boolean.FALSE)) {
-
-					if (loader.isNeedsSave()) {
-						final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15),
-								FancyWindow.Size.LARGE, true) {
-							@Override
-							public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-								hideWindow();
-							}
-
-							@Override
-							public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
-								hideWindow();
-								closeEditor();
-							}
-						};
-						dialog.setDestroyOnHide(true);
-						dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
-						dialog.setWindowTitle("Confirm Close Template");
-						dialog.setButtonOkText("Close");
-						dialog.setMsg("You have unsaved edits! Are you sure you wish to close this template?");
-						dialog.setIsResizable(false);
-						dialog.setIsMovable(false);
-						dialog.sizeToContent();
-						UIUtil.center(screen, dialog);
-						screen.addElement(dialog, null, true);
-						dialog.showAsModal(true);
-					} else {
-						closeEditor();
-					}
-				} else {
-					validateTerrainTemplate(((TerrainTemplateConfiguration) item.getValue()));
-				}
-			}
-		};
-		if (loader.getDefaultTerrainTemplate() != null) {
-			menu.addMenuItem(null, new XSeparator(screen, Element.Orientation.HORIZONTAL), null).setSelectable(false);
-			menu.addMenuItem("Close", Boolean.FALSE);
-			menu.addMenuItem("Export", Boolean.TRUE);
-		}
-		for (MenuActions n : MenuActions.values()) {
-			menu.addMenuItem(Icelib.toEnglish(n), n);
-		}
-		menu.addMenuItem(null, new XSeparator(screen, Element.Orientation.HORIZONTAL), null).setSelectable(false);
-		app.getWorldLoaderExecutorService().execute(new Runnable() {
-
-			@Override
-			public String toString() {
-				return "Loading available terrain";
-			}
-
-			@Override
-			public void run() {
-				for (String n : ((ServerAssetManager) app.getAssetManager())
-						.getAssetNamesMatching(".*/Terrain-[a-zA-Z\\d[_]]*\\.cfg")) {
-					TerrainTemplateConfiguration cfg = TerrainTemplateConfiguration.get(assetManager, n);
-					if (!cfg.getBaseTemplateName().equals("Common") && !cfg.getBaseTemplateName().equals("Default")
-							&& !cfg.equals(loader.getTerrainTemplate())) {
-						app.enqueue(new Callable<Void>() {
-
-							@Override
-							public Void call() throws Exception {
-								ZMenuItem m = menu.addMenuItem(Icelib.toEnglish(cfg.getBaseTemplateName()), cfg);
-								if (((IcesceneApp) app).getAssets().isExternal(cfg.getAssetPath())) {
-									m.getItemTextElement().setFontColor(ColorRGBA.Green);
-								}
-								menu.sizeToContent();
-								return null;
-							}
-						});
-					}
-				}
-				app.enqueue(new Callable<Void>() {
-					@Override
-					public Void call() throws Exception {
-						loadingMenu = false;
-						setAvailable();
-						screen.addElement(menu);
-						menu.showMenu(null, x, y);
-						return null;
-					}
-				});
-			}
-		});
-
-		// Show menu
-		return menu;
-	}
-
-	private void closeEditor() {
-		loader.setTerrainTemplate(null);
-		if (TerrainEditorAppState.isEditing(stateManager)) {
-			TerrainEditorAppState.toggle(stateManager);
-		}
-	}
-
-	private File getTerrainFolder() {
-		return new File(((IcesceneApp) app).getAssets().getExternalAssetsFolder(), SceneConstants.TERRAIN_PATH);
-	}
-
-	private void askForCloneName(final TerrainTemplateConfiguration sourceTemplate) {
-		final FancyInputBox dialog = new FancyInputBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE, true) {
-			@Override
-			public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-				hideWindow();
-			}
-
-			@Override
-			public void onButtonOkPressed(MouseButtonEvent evt, String text, boolean toggled) {
-				// Check the name doesn't already exist
-				File f = MenuAppState.this.app.getAssets()
-						.getExternalAssetFile(String.format("%s/%s", SceneConstants.TERRAIN_PATH, text));
-				if (f.exists()) {
-					error(String.format("The template %s already exists locally."));
-					hideWindow();
-				} else {
-					// Close existing terrain
-					closeEditor();
-
-					// Clone#
-					hideWindow();
-
-					String terrainDir = sourceTemplate.getAssetFolder();
-					String terrainName = text.replace(" ", "").replace("/", "").replace("\\", "");
-					terrainDir = Icelib.getDirname(terrainDir) + "/Terrain-" + terrainName;
-					LOG.info(String.format("New terrain directory will be %s", terrainDir));
-					cloneTerrainTemplate(CloneType.iceclient, sourceTemplate, terrainName, terrainDir,
-							MenuAppState.this.app.getAssets().getExternalAssetsFolder(), new OnCloneCallback() {
-
-								@Override
-								public void run(TerrainTemplateConfiguration targetTemplate, FancyWindow input) {
-									setAvailable();
-									input.hideWindow();
-									loadTerrainTemplate(targetTemplate, true);
-
-								}
-							});
-				}
-			}
-		};
-		dialog.setDestroyOnHide(true);
-		dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
-		dialog.setWindowTitle("New Clone");
-		dialog.setButtonOkText("Clone");
-		dialog.setMsg(sourceTemplate.getBaseTemplateName() + " Copy");
-		dialog.setIsResizable(false);
-		dialog.setIsMovable(false);
-		dialog.sizeToContent();
-		dialog.setWidth(300);
-		UIUtil.center(screen, dialog);
-		screen.addElement(dialog, null, true);
-		dialog.showAsModal(true);
 	}
 
 	private void exportTerrainTemplate(final TerrainTemplateConfiguration template) {
-		final FancyInputBox dialog = new FancyInputBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE, true) {
+		final InputBox dialog = new InputBox(screen, new Vector2f(15, 15), true) {
+			{
+				setStyleClass("large");
+			}
+
 			@Override
 			public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-				hideWindow();
+				hide();
 			}
 
 			@Override
@@ -691,9 +413,9 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 							new OnCloneCallback() {
 
 								@Override
-								public void run(TerrainTemplateConfiguration targetTemplate, FancyWindow input) {
+								public void run(TerrainTemplateConfiguration targetTemplate, Frame input) {
 									setAvailable();
-									input.hideWindow();
+									input.hide();
 									try {
 										Zip.compress(outDir, sel.getSelectedFile());
 									} catch (Exception e) {
@@ -706,21 +428,126 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 
 				}
 				;
-				hideWindow();
+				hide();
 			}
 		};
 		dialog.setDestroyOnHide(true);
-		dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
+		ElementStyle.warningColor(dialog.getDragBar());
 		dialog.setWindowTitle("Export Terrain");
 		dialog.setButtonOkText("Export");
 		dialog.setMsg(template.getBaseTemplateName());
-		dialog.setIsResizable(false);
-		dialog.setIsMovable(false);
-		dialog.sizeToContent();
-		dialog.setWidth(300);
-		UIUtil.center(screen, dialog);
-		screen.addElement(dialog, null, true);
-		dialog.showAsModal(true);
+		dialog.setModal(true);
+		screen.showElement(dialog, ScreenLayoutConstraints.center);
+	}
+
+	private void closeTerrain() {
+		if (loader.isNeedsSave()) {
+			final DialogBox dialog = new DialogBox(screen, new Vector2f(15, 15), true) {
+				{
+					setStyleClass("large");
+				}
+
+				@Override
+				public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
+					hide();
+				}
+
+				@Override
+				public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
+					hide();
+					closeEditor();
+				}
+			};
+			dialog.setDestroyOnHide(true);
+			ElementStyle.warningColor(dialog.getDragBar());
+			dialog.setWindowTitle("Confirm Close Template");
+			dialog.setButtonOkText("Close");
+			dialog.setText("You have unsaved edits! Are you sure you wish to close this template?");
+			dialog.setResizable(false);
+			dialog.setMovable(false);
+			dialog.setModal(true);
+			screen.showElement(dialog, ScreenLayoutConstraints.center);
+		} else {
+			closeEditor();
+		}
+	}
+
+	private void helpAbout() {
+		AlertBox alert = new AlertBox(screen, true) {
+
+			@Override
+			public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
+				hide();
+			}
+		};
+		alert.setModal(true);
+		alert.setTitle("About");
+		alert.setText("<h1>" + AppInfo.getName() + "</h1><h4>Version " + AppInfo.getVersion() + "</h4>");
+		screen.showElement(alert, ScreenLayoutConstraints.center);
+	}
+
+	private void help() {
+		HelpAppState has = app.getStateManager().getState(HelpAppState.class);
+		if (has == null) {
+			app.getStateManager().attach(new HelpAppState(prefs));
+		} else {
+			app.getStateManager().detach(has);
+		}
+	}
+
+	private void exitApp() {
+		if (loader.isNeedsSave()) {
+			final DialogBox dialog = new DialogBox(screen, new Vector2f(15, 15), true) {
+				{
+					setStyleClass("large");
+				}
+
+				@Override
+				public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
+					hide();
+				}
+
+				@Override
+				public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
+					app.stop();
+				}
+			};
+			dialog.setDestroyOnHide(true);
+			ElementStyle.warningColor(dialog.getDragBar());
+			dialog.setWindowTitle("Confirm Exit");
+			dialog.setButtonOkText("Exit");
+			dialog.setText("You have unsaved edits! Are you sure you wish to exit?");
+			dialog.setModal(true);
+			screen.showElement(dialog, ScreenLayoutConstraints.center);
+		} else {
+			if (cloning) {
+				LOG.info("Interrupting cloneing");
+				cloneThread.interrupt();
+				LOG.info("Interrupted cloneing");
+			}
+			app.stop();
+		}
+	}
+
+	private void setAvailable() {
+		menuBar.setEnabled(!loading && !cloning);
+		close.setEnabled(loader.getDefaultTerrainTemplate() != null);
+		map.setEnabled(loader.getDefaultTerrainTemplate() != null);
+		export.setEnabled(loader.getDefaultTerrainTemplate() != null);
+		EditableEnvironmentSwitcherAppState env = app.getStateManager()
+				.getState(EditableEnvironmentSwitcherAppState.class);
+		timeOfDay.setEnabled(env != null && env.getEnvironment() == null);
+		editEnvironmentConfiguration.setEnabled(env != null && env.getEnvironmentConfiguration() != null);
+		editEnvironment.setEnabled(env != null && env.getEnvironment() != null);
+	}
+
+	private void toggleOptions() {
+		final OptionsAppState state = stateManager.getState(OptionsAppState.class);
+		if (state == null) {
+			stateManager.attach(new OptionsAppState(prefs));
+		} else {
+			stateManager.detach(state);
+		}
 	}
 
 	private void validateTerrainTemplate(final TerrainTemplateConfiguration template) {
@@ -735,52 +562,112 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 			LOG.info(String.format("Local, terrain folder %s does not exist, offering to clone",
 					localTerrainFolder.getAbsolutePath()));
 
-			final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE,
-					true) {
+			final DialogBox dialog = new DialogBox(screen, true) {
+				{
+					setStyleClass("large");
+				}
+
 				@Override
 				public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-					hideWindow();
+					hide();
 				}
 
 				@Override
 				public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
 					// Clone#
-					hideWindow();
+					hide();
 					askForCloneName(template);
 				}
 
 				@Override
-				public void createButtons(Element buttons) {
-					FancyButton btnReadOnly = new FancyButton(screen, getUID() + ":btnReadOnly") {
-						@Override
-						public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-							loadTerrainTemplate(template, false);
-							hideWindow();
+				public void createButtons(BaseElement buttons) {
+					PushButton btnReadOnly = new PushButton(screen, "Read-Only") {
+						{
+							setStyleClass("fancy");
 						}
 					};
-					btnReadOnly.setText("Read-Only");
-					buttons.addChild(btnReadOnly);
+					btnReadOnly.onMouseReleased(evt -> {
+						loadTerrainTemplate(template, false);
+						hide();
+					});
+					buttons.addElement(btnReadOnly);
 					form.addFormElement(btnReadOnly);
 					super.createButtons(buttons);
 				}
 			};
 			dialog.setDestroyOnHide(true);
-			dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
+			ElementStyle.warningColor(dialog.getDragBar());
 			dialog.setWindowTitle("Read-Only Template");
 			dialog.setButtonOkText("Clone");
-			dialog.setMsg(String.format("The template %s is provided by the server, so cannot be "
+			dialog.setText(String.format("The template %s is provided by the server, so cannot be "
 					+ "directly edited. You may either CLONE the terrain for local editing, or "
 					+ "open the template in read-only mode.", template.getBaseTemplateName()));
-			dialog.setIsResizable(false);
-			dialog.setIsMovable(false);
-			dialog.sizeToContent();
-			UIUtil.center(screen, dialog);
-			screen.addElement(dialog, null, true);
-			dialog.showAsModal(true);
+			dialog.setModal(true);
+			screen.showElement(dialog, ScreenLayoutConstraints.center);
 		} else {
 			LOG.info(String.format("Local terrain folder %s exists, opening", localTerrainFolder.getAbsolutePath()));
 			loadTerrainTemplate(template, true);
 		}
+	}
+
+	private void closeEditor() {
+		loader.setTerrainTemplate(null);
+		if (TerrainEditorAppState.isEditing(stateManager)) {
+			TerrainEditorAppState.toggle(stateManager);
+		}
+	}
+
+	private void askForCloneName(final TerrainTemplateConfiguration sourceTemplate) {
+		final InputBox dialog = new InputBox(screen, true) {
+			{
+				setStyleClass("large new-clone");
+			}
+
+			@Override
+			public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
+				hide();
+			}
+
+			@Override
+			public void onButtonOkPressed(MouseButtonEvent evt, String text, boolean toggled) {
+				// Check the name doesn't already exist
+				File f = MenuAppState.this.app.getAssets()
+						.getExternalAssetFile(String.format("%s/%s", SceneConstants.TERRAIN_PATH, text));
+				if (f.exists()) {
+					error(String.format("The template %s already exists locally."));
+					hide();
+				} else {
+					// Close existing terrain
+					closeEditor();
+
+					// Clone#
+					hide();
+
+					String terrainDir = sourceTemplate.getAssetFolder();
+					String terrainName = text.replace(" ", "").replace("/", "").replace("\\", "");
+					terrainDir = Icelib.getDirname(terrainDir) + "/Terrain-" + terrainName;
+					LOG.info(String.format("New terrain directory will be %s", terrainDir));
+					cloneTerrainTemplate(CloneType.iceclient, sourceTemplate, terrainName, terrainDir,
+							MenuAppState.this.app.getAssets().getExternalAssetsFolder(), new OnCloneCallback() {
+
+								@Override
+								public void run(TerrainTemplateConfiguration targetTemplate, Frame input) {
+									setAvailable();
+									input.hide();
+									loadTerrainTemplate(targetTemplate, true);
+
+								}
+							});
+				}
+			}
+		};
+		dialog.setDestroyOnHide(true);
+		ElementStyle.warningColor(dialog.getDragBar());
+		dialog.setWindowTitle("New Clone");
+		dialog.setButtonOkText("Clone");
+		dialog.setMsg(sourceTemplate.getBaseTemplateName() + " Copy");
+		dialog.setModal(true);
+		screen.showElement(dialog, ScreenLayoutConstraints.center);
 	}
 
 	private void cloneTerrainTemplate(final CloneType cloneType, final TerrainTemplateConfiguration sourceTemplate,
@@ -850,21 +737,21 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 
 		LOG.info(String.format("Will clone %d bytes of terrain template %s", totalSize, targetTemplate.getAssetPath()));
 		final Label progressTitle = new Label("Cloneing ..", screen);
-		final FancyWindow w = new FancyWindow(screen, Vector2f.ZERO, FancyWindow.Size.LARGE, false);
-		w.getContentArea().setLayoutManager(new MigLayout(screen, "fill, wrap 1", "[]", "[][]"));
-		w.setIsResizable(false);
-		w.setIsMovable(false);
-		w.setWindowTitle("Cloneing");
-		w.getContentArea().addChild(progressTitle, "growx, wrap");
-		final Indicator overallProgress = new Indicator(screen, Element.Orientation.HORIZONTAL);
+
+		final Indicator overallProgress = new Indicator(screen, Orientation.HORIZONTAL);
 		overallProgress.setMaxValue(useFileCount ? assetsMatching.size() : 100);
 		overallProgress.setCurrentValue(0);
-		w.setDestroyOnHide(true);
-		w.getContentArea().addChild(overallProgress, "shrink 0, growx, wrap");
-		w.sizeToContent();
-		w.setWidth(200);
-		UIUtil.center(screen, w);
-		screen.addElement(w);
+
+		final Frame w = new Frame(screen, false) {
+			{
+				setStyleClass("clone-progress large");
+			}
+		};
+		w.getContentArea().setLayoutManager(new MigLayout(screen, "fill, wrap 1", "[grow]", "[][]"));
+		w.setWindowTitle("Cloning");
+		w.getContentArea().addElement(progressTitle, "growx");
+		w.getContentArea().addElement(overallProgress, "growx");
+		screen.showElement(w, ScreenLayoutConstraints.center);
 
 		// TODO the progress totals aren't quite right, i think because of
 		// differences
@@ -1073,7 +960,7 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 					app.enqueue(new Callable<Void>() {
 						public Void call() throws Exception {
 							setAvailable();
-							w.hideWindow();
+							w.hide();
 							return null;
 						}
 					});
@@ -1086,48 +973,18 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 
 	}
 
-	private void setAvailable() {
-
-		environment.setIsEnabled(!cloning && !loadingMenu && !loadingEnvironmentMenu);
-		terrain.setIsEnabled(!cloning && !loadingMenu && !loadingEnvironmentMenu);
-		options.setIsEnabled(!cloning);
-		map.setIsEnabled(
-				!cloning && !loadingMenu && !loadingEnvironmentMenu && loader.getDefaultTerrainTemplate() != null);
-	}
-
-	private void exitApp() {
-		if (loader.isNeedsSave()) {
-			final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE,
-					true) {
-				@Override
-				public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-					hideWindow();
-				}
-
-				@Override
-				public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
-					app.stop();
-				}
-			};
-			dialog.setDestroyOnHide(true);
-			dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
-			dialog.setWindowTitle("Confirm Exit");
-			dialog.setButtonOkText("Exit");
-			dialog.setMsg("You have unsaved edits! Are you sure you wish to exit?");
-
-			dialog.setIsResizable(false);
-			dialog.setIsMovable(false);
-			dialog.sizeToContent();
-			UIUtil.center(screen, dialog);
-			screen.addElement(dialog, null, true);
-			dialog.showAsModal(true);
-		} else {
-			if (cloning) {
-				LOG.info("Interrupting cloneing");
-				cloneThread.interrupt();
-				LOG.info("Interrupted cloneing");
+	protected void clearUpClonedDirectory() {
+		if (cloningTerrainDirFile != null) {
+			try {
+				LOG.info(String.format("Clearing up partially cloned directory %s", cloningTerrainDirFile));
+				FileUtils.deleteDirectory(cloningTerrainDirFile);
+			} catch (IOException ex) {
+				LOG.log(Level.SEVERE,
+						String.format("Failed to clearing up partially cloned directory.%", cloningTerrainDirFile));
+			} finally {
+				cloningTerrainDirFile = null;
 			}
-			app.stop();
+
 		}
 	}
 
@@ -1173,49 +1030,38 @@ public class MenuAppState extends IcemoonAppState<IcemoonAppState<?>> implements
 				node.getFloat("cameraRotationY", defaultRotation.getY()),
 				node.getFloat("cameraRotationZ", defaultRotation.getZ()),
 				node.getFloat("cameraRotationW", defaultRotation.getW()));
-		// app.getCamera().setLocation(
-		// position);
-		// app.getCamera().setRotation(
-		// defaultRotation);
 
-		// Setting the template fires an event which is picked up in the
-		// application, which
-		// activates the editor if needed
 		loader.setReadOnly(!writeable);
 		loader.setDefaultTerrainTemplate(template, position, defaultRotation);
 
 	}
 
-	protected void clearUpClonedDirectory() {
-		if (cloningTerrainDirFile != null) {
-			try {
-				LOG.info(String.format("Clearing up partially cloned directory %s", cloningTerrainDirFile));
-				FileUtils.deleteDirectory(cloningTerrainDirFile);
-			} catch (IOException ex) {
-				LOG.log(Level.SEVERE,
-						String.format("Failed to clearing up partially cloned directory.%", cloningTerrainDirFile));
-			} finally {
-				cloningTerrainDirFile = null;
-			}
+	private File getTerrainFolder() {
+		return new File(((IcesceneApp) app).getAssets().getExternalAssetsFolder(), SceneConstants.TERRAIN_PATH);
+	}
 
+	protected void openTerrainFolder() {
+		final File terrainFolder = getTerrainFolder();
+		try {
+			XDesktop.getDesktop().open(terrainFolder);
+		} catch (IOException ex) {
+			LOG.log(Level.SEVERE, String.format("Failed to open terrain folder %s", terrainFolder), ex);
+			error(String.format("Failed to open terrain folder %s", terrainFolder), ex);
 		}
 	}
 
 	@Override
-	public void templateChanged(TerrainTemplateConfiguration templateConfiguration, Vector3f initialLocation,
-			Quaternion initialRotation) {
+	public void phaseChanged(EnvironmentPhase phase) {
 		setAvailable();
 	}
 
 	@Override
-	public void terrainReload() {
+	public void environmentChanged(String environment) {
+		setAvailable();
 	}
 
 	@Override
-	public void tileLoaded(TerrainInstance instance) {
-	}
-
-	@Override
-	public void tileUnloaded(TerrainInstance instance) {
+	public void environmentConfigurationChanged(AbstractEnvironmentConfiguration topEnv) {
+		setAvailable();
 	}
 }

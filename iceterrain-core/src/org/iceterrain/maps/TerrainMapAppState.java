@@ -8,6 +8,7 @@ import java.util.prefs.Preferences;
 import org.icelib.Icelib;
 import org.icelib.PageLocation;
 import org.icescene.HUDMessageAppState;
+import org.icescene.HUDMessageAppState.Channel;
 import org.icescene.IcemoonAppState;
 import org.icescene.IcesceneApp;
 import org.icescene.SceneConfig;
@@ -16,30 +17,27 @@ import org.iceterrain.TerrainAppState;
 import org.iceterrain.TerrainInstance;
 import org.iceterrain.TerrainLoader;
 import org.iceterrain.TerrainLoader.Listener;
-import org.iceui.HPosition;
-import org.iceui.VPosition;
-import org.iceui.controls.FancyPersistentWindow;
-import org.iceui.controls.FancyWindow;
-import org.iceui.controls.SaveType;
 
 import com.jme3.app.state.AppStateManager;
 import com.jme3.asset.AssetNotFoundException;
-import com.jme3.input.event.MouseButtonEvent;
+import com.jme3.font.BitmapFont.Align;
+import com.jme3.font.BitmapFont.VAlign;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
-import com.jme3.math.Vector4f;
+import com.jme3.texture.Texture;
 
 import icemoon.iceloader.ServerAssetManager;
 import icetone.controls.lists.ComboBox;
 import icetone.controls.scrolling.ScrollPanel;
 import icetone.controls.text.Label;
-import icetone.core.Container;
-import icetone.core.Element;
-import icetone.core.ElementManager;
-import icetone.core.layout.LUtil;
+import icetone.core.BaseElement;
+import icetone.core.BaseScreen;
+import icetone.core.Size;
+import icetone.core.StyledContainer;
 import icetone.core.layout.mig.MigLayout;
-import icetone.listeners.MouseButtonListener;
+import icetone.extras.windows.PersistentWindow;
+import icetone.extras.windows.SaveType;
 
 /**
  * Stitches together terrain images for an overview
@@ -51,7 +49,7 @@ public class TerrainMapAppState extends IcemoonAppState<IcemoonAppState<?>> impl
 		COVERAGE, HEIGHTMAP, BASE, TEXTURE
 	}
 
-	private FancyPersistentWindow terrainMapWindow;
+	private PersistentWindow terrainMapWindow;
 	private TerrainLoader terrainLoader;
 
 	private ScrollPanel map;
@@ -74,9 +72,8 @@ public class TerrainMapAppState extends IcemoonAppState<IcemoonAppState<?>> impl
 		terrainLoader.addListener(this);
 
 		// / Minmap window
-		terrainMapWindow = new FancyPersistentWindow(screen, SceneConfig.LANDMARKS,
-				screen.getStyle("Common").getInt("defaultWindowOffset"), VPosition.MIDDLE, HPosition.CENTER, new Vector2f(500, 500),
-				FancyWindow.Size.SMALL, true, SaveType.POSITION_AND_SIZE, prefs) {
+		terrainMapWindow = new PersistentWindow(screen, SceneConfig.LANDMARKS, VAlign.Center, Align.Center,
+				new Size(500, 500), true, SaveType.POSITION_AND_SIZE, prefs) {
 			@Override
 			protected void onCloseWindow() {
 				super.onCloseWindow();
@@ -84,43 +81,38 @@ public class TerrainMapAppState extends IcemoonAppState<IcemoonAppState<?>> impl
 			}
 		};
 		terrainMapWindow.setWindowTitle("Terrain Overview");
-		terrainMapWindow.setIsMovable(true);
-		terrainMapWindow.setIsResizable(true);
+		terrainMapWindow.setMovable(true);
+		terrainMapWindow.setResizable(true);
 		terrainMapWindow.setDestroyOnHide(true);
 
 		map = new ScrollPanel(screen);
-		map.setUseContentPaging(true);
 
-		Container container = new Container(screen);
+		StyledContainer container = new StyledContainer(screen);
 		container.setLayoutManager(new MigLayout(screen, "", "[][fill,grow]", "[]"));
 
-		type = new ComboBox<MapType>(screen, MapType.values()) {
-			@Override
-			protected void onChange(int selectedIndex, MapType value) {
-				reload();
-			}
-		};
-		container.addChild(new Label("Type:", screen));
-		container.addChild(type);
+		type = new ComboBox<MapType>(screen, MapType.values());
+		type.onChange(evt -> app.getWorldLoaderExecutorService().execute(() -> reload()));
+		container.addElement(new Label("Type:", screen));
+		container.addElement(type);
 
 		// This
-		final Element contentArea = terrainMapWindow.getContentArea();
+		final BaseElement contentArea = terrainMapWindow.getContentArea();
 		contentArea.setLayoutManager(new MigLayout(screen, "wrap 1", "[fill, grow]", "[shrink 0][fill, grow]"));
 
-		contentArea.addChild(container);
-		contentArea.addChild(map);
+		contentArea.addElement(container);
+		contentArea.addElement(map);
 
 		// Show with an effect and sound
 		screen.addElement(terrainMapWindow);
 
-		reload();
+		app.getWorldLoaderExecutorService().execute(() -> reload());
 	}
 
 	protected void reload() {
 		MapType type = (MapType) this.type.getSelectedListItem().getValue();
 
 		// Find the bounds of the terrain
-		map.getScrollableArea().removeAllChildren();
+		app.enqueue(() -> map.getScrollableArea().removeAllChildren());
 		if (terrainLoader.getDefaultTerrainTemplate() != null) {
 
 			String path = terrainLoader.getDefaultTerrainTemplate().getAssetFolder();
@@ -150,7 +142,9 @@ public class TerrainMapAppState extends IcemoonAppState<IcemoonAppState<?>> impl
 			// map.setScrollContentLayout(new GridLayout(maxx - minx + 1, maxy -
 			// miny + 1));
 			// map.layoutChildren();
-			map.setScrollContentLayout(new MigLayout(screen, "gap 0, ins 0, wrap " + (maxx - minx + 1)));
+			map.setScrollContentLayout(new MigLayout(screen, "gap 0, ins 0"));
+
+			LOG.info(String.format("Mapping %d,%d -> %d,%d (%d,%d)", minx, miny, maxx, maxy, maxx - minx, maxy - miny));
 
 			try {
 				for (int y = miny; y <= maxy; y++) {
@@ -172,14 +166,20 @@ public class TerrainMapAppState extends IcemoonAppState<IcemoonAppState<?>> impl
 							baseImgPath = String.format(ti.getTerrainTemplate().getTextureTextureFormat(), x, y);
 							break;
 						}
+						final Object cons = x == maxx ? "wrap" : null;
 						String imgPath = String.format("%s/%s", ti.getTerrainTemplate().getAssetFolder(), baseImgPath);
-						TileLabel tileEl = null;
 						try {
-							tileEl = new TileLabel(screen, imgPath, ti);
+							final Texture tex = app.getAssetManager().loadTexture(imgPath);
+							app.enqueue(() -> {
+								map.addScrollableContent(new TileLabel(screen, ti).setTexture(tex), cons);
+								return null;
+							});
 						} catch (AssetNotFoundException ane) {
-							tileEl = new TileLabel(screen, ti);
+							app.enqueue(() -> {
+								map.addScrollableContent(new TileLabel(screen, ti), cons);
+								return null;
+							});
 						}
-						map.addScrollableContent(tileEl);
 
 					}
 				}
@@ -190,8 +190,10 @@ public class TerrainMapAppState extends IcemoonAppState<IcemoonAppState<?>> impl
 
 			LOG.info(String.format("Terrain bounds: %d,%d -> %d,%d", minx, miny, maxx, maxy));
 		}
-		map.dirtyLayout(true);
-		map.layoutChildren();
+		// app.enqueue(() -> {
+		// map.dirtyLayout(false, LayoutType.boundsChange());
+		// map.layoutChildren();
+		// });
 
 	}
 
@@ -200,61 +202,47 @@ public class TerrainMapAppState extends IcemoonAppState<IcemoonAppState<?>> impl
 		terrainLoader.removeListener(this);
 	}
 
-	class TileLabel extends Label implements MouseButtonListener {
-		private TerrainInstance ti;
+	class TileLabel extends Label {
 
-		TileLabel(ElementManager screen, String imgPath, TerrainInstance ti) {
-			super(screen, LUtil.LAYOUT_SIZE, Vector4f.ZERO, imgPath);
+		TileLabel(BaseScreen screen, String imgPath, TerrainInstance ti) {
+			super(screen);
+			setTexture(imgPath);
 			init(ti);
 		}
 
-		TileLabel(ElementManager screen, TerrainInstance ti) {
-			super(screen, LUtil.LAYOUT_SIZE);
+		TileLabel(BaseScreen screen, TerrainInstance ti) {
+			super(screen);
 			init(ti);
 		}
 
 		void init(TerrainInstance ti) {
-			this.ti = ti;
 			setText(String.format("%d,%d", ti.getPage().x, ti.getPage().y));
-			setPreferredDimensions(new Vector2f(128, 128));
-			setMinDimensions(new Vector2f(128, 128));
-			setMaxDimensions(new Vector2f(128, 128));
+			setPreferredDimensions(new Size(128, 128));
+			setMinDimensions(new Size(128, 128));
+			setMaxDimensions(new Size(128, 128));
 			setIgnoreMouseButtons(false);
+			onMouseReleased(evt -> {
+				Vector2f rel = new Vector2f((float) ti.getTerrainTemplate().getPageWorldX() / 2f,
+						(float) ti.getTerrainTemplate().getPageWorldZ() / 2f);
+				Vector2f wl = ti.relativeToWorld(rel);
+				Vector3f newLocation = new Vector3f(wl.x, app.getCamera().getLocation().y, wl.y);
+				HUDMessageAppState hud = app.getStateManager().getState(HUDMessageAppState.class);
+				if (ti.getTerrainTemplate().getPage() != null) {
+					hud.message(Channel.INFORMATION, String.format("Warping to %d,%d",
+							ti.getTerrainTemplate().getPage().x, ti.getTerrainTemplate().getPage().y));
+					app.getCamera().setLocation(newLocation);
+				} else {
+					hud.message(Channel.ERROR, String.format("No tile here."));
+				}
+			});
 		}
 
-		@Override
-		public void onMouseLeftPressed(MouseButtonEvent evt) {
-		}
-
-		@Override
-		public void onMouseLeftReleased(MouseButtonEvent evt) {
-			Vector2f rel = new Vector2f((float) ti.getTerrainTemplate().getPageWorldX() / 2f,
-					(float) ti.getTerrainTemplate().getPageWorldZ() / 2f);
-			Vector2f wl = ti.relativeToWorld(rel);
-			Vector3f newLocation = new Vector3f(wl.x, app.getCamera().getLocation().y, wl.y);
-			HUDMessageAppState hud = app.getStateManager().getState(HUDMessageAppState.class);
-			if (ti.getTerrainTemplate().getPage() != null) {
-				hud.message(Level.INFO, String.format("Warping to %d,%d", ti.getTerrainTemplate().getPage().x,
-						ti.getTerrainTemplate().getPage().y));
-				app.getCamera().setLocation(newLocation);
-			} else {
-				hud.message(Level.SEVERE, String.format("No tile here."));
-			}
-		}
-
-		@Override
-		public void onMouseRightPressed(MouseButtonEvent evt) {
-		}
-
-		@Override
-		public void onMouseRightReleased(MouseButtonEvent evt) {
-		}
 	}
 
 	@Override
 	public void templateChanged(TerrainTemplateConfiguration templateConfiguration, Vector3f initialLocation,
 			Quaternion initialRotation) {
-		reload();
+		app.getWorldLoaderExecutorService().execute(() -> reload());
 	}
 
 	@Override

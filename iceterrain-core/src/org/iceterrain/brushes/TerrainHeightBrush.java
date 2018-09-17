@@ -2,18 +2,19 @@ package org.iceterrain.brushes;
 
 import java.util.List;
 
-import org.icelib.UndoManager;
-import org.icescene.SceneConstants;
 import org.icescene.terrain.SaveableHeightMap;
 import org.iceterrain.HeightData;
 import org.iceterrain.HeightDataKey;
-import org.iceterrain.TerrainConstants;
 import org.iceterrain.HeightDataKey.Op;
+import org.iceterrain.TerrainConstants;
 import org.iceterrain.TerrainInstance;
 import org.iceterrain.TerrainLoader;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.math.Vector2f;
+
+import icetone.core.undo.UndoManager;
+import icetone.core.undo.UndoableCommand;
 
 /**
  * Adjusts the heightmap using a bitmap image as a mask (and the configured
@@ -52,14 +53,14 @@ public class TerrainHeightBrush extends AbstractHeightBrush {
 		}
 	}   
 
-	protected UndoManager.UndoableCommand doPaintPixel(final TerrainInstance instance, final Vector2f point, final Vector2f centre,
+	protected UndoableCommand doPaintPixel(final TerrainInstance instance, final Vector2f point, final Vector2f centre,
 			final float amount, int paints) {
 		//return new HeightCommand(instance, amount / size, centre);
 		return new HeightCommand(instance, amount * ((SaveableHeightMap)instance.getHeightmap()).getHeightScale() * TerrainConstants.HEIGHT_BRUSH_FACTOR, centre);
 	}
 
 	@SuppressWarnings("serial")
-	public final class HeightCommand implements UndoManager.UndoableCommand {
+	public final class HeightCommand implements UndoableCommand {
 		private final TerrainInstance instance;
 		private final float famount;
 		private final Vector2f centre;

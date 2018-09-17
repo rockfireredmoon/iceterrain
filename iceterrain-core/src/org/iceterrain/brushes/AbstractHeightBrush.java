@@ -4,19 +4,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.icelib.UndoManager;
-import org.icescene.terrain.SaveableHeightMap;
 import org.iceterrain.AbstractBrush;
 import org.iceterrain.HeightData;
 import org.iceterrain.HeightDataKey;
-import org.iceterrain.TerrainConstants;
 import org.iceterrain.TerrainInstance;
 import org.iceterrain.TerrainLoader;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.math.Vector2f;
 import com.jme3.scene.Node;
-import com.jme3.terrain.geomipmap.TerrainQuad;
+
+import icetone.core.undo.UndoManager;
+import icetone.core.undo.UndoableCommand;
+import icetone.core.undo.UndoableCompoundCommand;
 
 public abstract class AbstractHeightBrush extends AbstractBrush {
 
@@ -37,7 +37,7 @@ public abstract class AbstractHeightBrush extends AbstractBrush {
 	}
 
 	@Override
-	protected final UndoManager.UndoableCommand paintPixel(TerrainInstance instance, Vector2f point, float amount, int paints) {
+	protected final UndoableCommand paintPixel(TerrainInstance instance, Vector2f point, float amount, int paints) {
 		// return doPaintPixel(instance, point, instance.worldToRelative(point),
 		// amount * (float) instance.getTerrainTemplate().getMaxHeight() /
 		// TerrainConstants.HEIGHT_BRUSH_FACTOR, paints);
@@ -65,12 +65,12 @@ public abstract class AbstractHeightBrush extends AbstractBrush {
 				(point.y / instance.getTerrainTemplate().getPageWorldZ()) * instance.getTerrainTemplate().getPageSize());
 	}
 
-	protected abstract UndoManager.UndoableCommand doPaintPixel(TerrainInstance instance, Vector2f point, Vector2f center,
+	protected abstract UndoableCommand doPaintPixel(TerrainInstance instance, Vector2f point, Vector2f center,
 			float amount, int paints);
 
 	@Override
-	protected UndoManager.UndoableCompoundCommand createCommandGroup() {
-		return new UndoManager.UndoableCompoundCommand() {
+	protected UndoableCompoundCommand createCommandGroup() {
+		return new UndoableCompoundCommand() {
 			private static final long serialVersionUID = 1L;
 
 			@Override

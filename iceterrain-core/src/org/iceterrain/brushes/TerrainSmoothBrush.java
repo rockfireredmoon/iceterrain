@@ -2,16 +2,18 @@ package org.iceterrain.brushes;
 
 import java.util.List;
 
-import org.icelib.UndoManager;
 import org.iceterrain.HeightData;
 import org.iceterrain.HeightDataKey;
-import org.iceterrain.TerrainConstants;
 import org.iceterrain.HeightDataKey.Op;
+import org.iceterrain.TerrainConstants;
 import org.iceterrain.TerrainInstance;
 import org.iceterrain.TerrainLoader;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.math.Vector2f;
+
+import icetone.core.undo.UndoManager;
+import icetone.core.undo.UndoableCommand;
 
 /**
  * Smooths terrain
@@ -51,7 +53,7 @@ public class TerrainSmoothBrush extends AbstractHeightBrush {
 		key.getTerrainInstance().getQuad().setHeight(locs, heights);
 	}
 
-	protected UndoManager.UndoableCommand doPaintPixel(final TerrainInstance instance, final Vector2f point, final Vector2f centre,
+	protected UndoableCommand doPaintPixel(final TerrainInstance instance, final Vector2f point, final Vector2f centre,
 			float amount, int paints) {
 		final float currentHeight = instance.getQuad().getHeight(point);
 		float amt = Math.min(amount * TerrainConstants.SMOOTH_BRUSH_FACTOR, 0.01f);
@@ -67,7 +69,7 @@ public class TerrainSmoothBrush extends AbstractHeightBrush {
 		if(currentHeight != newHeight) {
 		System.out.println("OLD: " + currentHeight + " NEW: " + newHeight + " AVG: " + avg + " AMT: " + amt);
 		}
-		return new UndoManager.UndoableCommand() {
+		return new UndoableCommand() {
 			private static final long serialVersionUID = 1L;
 
 			public void undoCommand() {

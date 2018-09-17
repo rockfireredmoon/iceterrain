@@ -2,8 +2,6 @@ package org.iceterrain;
 
 import java.nio.ByteBuffer;
 
-import org.icelib.UndoManager;
-
 import com.jme3.asset.AssetManager;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector2f;
@@ -11,6 +9,10 @@ import com.jme3.scene.Node;
 import com.jme3.texture.Image;
 import com.jme3.texture.image.ImageRaster;
 import com.zero_separation.plugins.imagepainter.ImagePainter;
+
+import icetone.core.undo.UndoManager;
+import icetone.core.undo.UndoableCommand;
+import icetone.core.undo.UndoableCompoundCommand;
 
 /**
  * Brushes are used to paint terrain heightmaps and splats.
@@ -68,7 +70,7 @@ public abstract class AbstractBrush {
 		ColorRGBA brushAmount;
 		TerrainInstance instance;
 		float amount;
-		UndoManager.UndoableCompoundCommand commandGroup = createCommandGroup();
+		UndoableCompoundCommand commandGroup = createCommandGroup();
 		instance = loader.getPageInstanceAtWorldPosition(worldCursor);
 
 		float xStepAmount = calcXStep(instance);
@@ -96,7 +98,7 @@ public abstract class AbstractBrush {
 				instance = loader.getPageInstanceAtWorldPosition(point);
 				if (instance != null && instance.getQuad() != null) {
 					// Process the pixel
-					final UndoManager.UndoableCommand paintPixel = paintPixel(instance, point, amount, paints);
+					final UndoableCommand paintPixel = paintPixel(instance, point, amount, paints);
 					if (paintPixel != null) {
 						commandGroup.add(paintPixel);
 					}
@@ -117,14 +119,14 @@ public abstract class AbstractBrush {
 	protected void onBeforePaint(Vector2f worldCursor, TerrainInstance instance) {
 	}
 
-	protected abstract UndoManager.UndoableCommand paintPixel(TerrainInstance instance, Vector2f point, float amount, int paints);
+	protected abstract UndoableCommand paintPixel(TerrainInstance instance, Vector2f point, float amount, int paints);
 
 	public Image getImage() {
 		return image;
 	}
 
-	protected UndoManager.UndoableCompoundCommand createCommandGroup() {
-		UndoManager.UndoableCompoundCommand commandGroup = new UndoManager.UndoableCompoundCommand();
+	protected UndoableCompoundCommand createCommandGroup() {
+		UndoableCompoundCommand commandGroup = new UndoableCompoundCommand();
 		return commandGroup;
 	}
 
@@ -136,7 +138,7 @@ public abstract class AbstractBrush {
 		return ((Node) instance.getQuad()).getWorldScale().z;
 	}
 
-	static class PaintCommand implements UndoManager.UndoableCommand {
+	static class PaintCommand implements UndoableCommand {
 
 		public void undoCommand() {
 		}

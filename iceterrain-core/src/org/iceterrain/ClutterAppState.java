@@ -13,12 +13,12 @@ import java.util.logging.Logger;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.Preferences;
 
-import org.icescene.Alarm;
 import org.icescene.IcemoonAppState;
 import org.icescene.IcesceneApp;
 import org.icescene.NodeVisitor;
 import org.icescene.SceneConfig;
 import org.icescene.SceneConstants;
+import org.icescene.NodeVisitor.VisitResult;
 import org.icescene.clutter.TerrainClutterGrid;
 import org.icescene.clutter.TerrainClutterHandler;
 import org.icescene.clutter.TerrainClutterTile;
@@ -42,6 +42,8 @@ import com.jme3.scene.Spatial;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import com.jme3.texture.Image;
 import com.jme3.texture.image.ImageRaster;
+
+import icetone.core.utils.Alarm;
 
 /**
  * Loads the clutters in tiles around the camera using height from the terrain,
@@ -239,9 +241,9 @@ public class ClutterAppState extends IcemoonAppState<TerrainAppState> {
 									;
 									props.put(en.getKey(), prop);
 								} else {
-									configureDistance((Node) prop.getSpatial());
 									prop = (AbstractProp) prop.clone();
 								}
+								configureDistance((Node) prop.getSpatial());
 
 								// Rotate the prop to the angle of the terrain
 								// at the point it will be placed
@@ -364,14 +366,16 @@ public class ClutterAppState extends IcemoonAppState<TerrainAppState> {
 
 	private void configureDistance(Node node) {
 		new NodeVisitor(node).visit(new NodeVisitor.Visit() {
-			public void visit(Spatial node) {
+			public VisitResult visit(Spatial node) {
 				if (node instanceof Geometry) {
 					final Material material = ((Geometry) node).getMaterial();
-					MatParam p = material.getParam("FadeEnabled");
-					if (p != null && p.getValue().equals(true)) {
+					MatParam p = material.getMaterialDef().getMaterialParam("FadeEnabled");
+					if (p != null) {
+						material.setBoolean("FadeEnabled", distance > 0);
 						material.setFloat("FadeEnd", distance);
 					}
 				}
+				return VisitResult.CONTINUE;
 			}
 		});
 	}

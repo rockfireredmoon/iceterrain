@@ -11,9 +11,9 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
@@ -25,12 +25,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.icelib.DOSWriter;
 import org.icelib.Icelib;
 import org.icelib.PageLocation;
-import org.icelib.UndoManager;
-import org.icescene.Alarm;
 import org.icescene.SceneConfig;
 import org.icescene.SceneConstants;
 import org.icescene.assets.Assets;
 import org.icescene.configuration.TerrainTemplateConfiguration;
+import org.icescene.configuration.TerrainTemplateConfiguration.LiquidPlane;
 import org.icescene.environment.EnvironmentLight;
 import org.icescene.io.ModifierKeysAppState;
 import org.icescene.io.MouseManager;
@@ -45,26 +44,19 @@ import org.iceterrain.brushes.TerrainFlattenBrush;
 import org.iceterrain.brushes.TerrainHeightBrush;
 import org.iceterrain.brushes.TerrainSmoothBrush;
 import org.iceterrain.brushes.TerrainSplatBrush;
-import org.iceui.HPosition;
-import org.iceui.UIConstants;
-import org.iceui.VPosition;
+import org.iceui.actions.ActionAppState;
+import org.iceui.actions.ActionMenu;
+import org.iceui.actions.AppAction;
+import org.iceui.actions.AppAction.Style;
 import org.iceui.controls.ElementStyle;
-import org.iceui.controls.FancyButton;
-import org.iceui.controls.FancyDialogBox;
-import org.iceui.controls.FancyPersistentWindow;
-import org.iceui.controls.FancyWindow;
-import org.iceui.controls.IconTabControl;
-import org.iceui.controls.SaveType;
 import org.iceui.controls.TabPanelContent;
-import org.iceui.controls.UIUtil;
-import org.iceui.controls.XSeparator;
-import org.iceui.effects.EffectHelper;
 
 import com.jme3.app.state.AppStateManager;
 import com.jme3.collision.CollisionResult;
 import com.jme3.collision.CollisionResults;
 import com.jme3.font.BitmapFont;
 import com.jme3.font.BitmapFont.Align;
+import com.jme3.font.BitmapFont.VAlign;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.event.MouseButtonEvent;
 import com.jme3.material.Material;
@@ -72,7 +64,6 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
-import com.jme3.math.Vector4f;
 import com.jme3.renderer.Camera;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Mesh;
@@ -87,28 +78,43 @@ import com.jme3.texture.Image;
 import com.zero_separation.plugins.imagepainter.ImagePainter;
 
 import icemoon.iceloader.ServerAssetManager;
-import icetone.controls.buttons.Button;
-import icetone.controls.buttons.ButtonAdapter;
+import icetone.controls.buttons.ButtonGroup;
 import icetone.controls.buttons.CheckBox;
+import icetone.controls.buttons.PushButton;
 import icetone.controls.buttons.RadioButton;
-import icetone.controls.buttons.RadioButtonGroup;
-import icetone.controls.form.Form;
+import icetone.controls.containers.TabControl;
+import icetone.controls.containers.TabControl.TabButton;
+import icetone.controls.extras.Separator;
 import icetone.controls.lists.ComboBox;
 import icetone.controls.lists.FloatRangeSpinnerModel;
 import icetone.controls.lists.IntegerRangeSpinnerModel;
 import icetone.controls.lists.Spinner;
-import icetone.controls.lists.Table;
+import icetone.controls.table.Table;
+import icetone.controls.table.TableCell;
+import icetone.controls.table.TableRow;
 import icetone.controls.text.Label;
 import icetone.core.Container;
-import icetone.core.Element;
-import icetone.core.Element.Orientation;
-import icetone.core.Element.ZPriority;
-import icetone.core.ElementManager;
+import icetone.core.BaseElement;
+import icetone.core.BaseScreen;
+import icetone.core.Form;
+import icetone.core.Orientation;
+import icetone.core.Size;
+import icetone.core.StyledContainer;
+import icetone.core.ToolKit;
+import icetone.core.ZPriority;
+import icetone.core.event.UIChangeListener;
+import icetone.core.layout.Border;
 import icetone.core.layout.BorderLayout;
 import icetone.core.layout.FlowLayout;
+import icetone.core.layout.ScreenLayoutConstraints;
 import icetone.core.layout.mig.MigLayout;
-import icetone.core.utils.UIDUtil;
-import icetone.effects.Effect;
+import icetone.core.undo.UndoManager;
+import icetone.core.undo.UndoableCommand;
+import icetone.core.utils.Alarm;
+import icetone.extras.windows.DialogBox;
+import icetone.extras.windows.PersistentWindow;
+import icetone.extras.windows.SaveType;
+import icetone.fontawesome.FontAwesome;
 
 public class TerrainEditorAppState extends TerrainAppState
 		implements MouseManager.Listener, ModifierKeysAppState.Listener, ActionListener {
@@ -129,18 +135,16 @@ public class TerrainEditorAppState extends TerrainAppState
 	private UndoManager undoManager;
 	private Alarm.AlarmTask undoRepeatTask;
 	private Alarm.AlarmTask redoRepeatTask;
-	private Container layer;
-	private FancyButton undoButton;
-	private FancyButton redoButton;
+	private StyledContainer layer;
 	private UndoManager.ListenerAdapter undoListener;
-	private ButtonAdapter newTile;
-	private ButtonAdapter deleteTile;
-	private FancyButton saveEnv;
-	private FancyButton resetEnv;
+	private PushButton newTile;
+	private PushButton deleteTile;
+	private PushButton saveEnv;
+	private PushButton resetEnv;
 	private int lastMods;
-	private IconTabControl tabs;
-	private RadioButton raise;
-	private RadioButton lower;
+	private TabControl tabs;
+	private RadioButton<Integer> raise;
+	private RadioButton<Integer> lower;
 	private Spinner<Integer> flattenSize;
 	private Spinner<Integer> splatSize;
 	private Spinner<Float> splatRate;
@@ -148,7 +152,7 @@ public class TerrainEditorAppState extends TerrainAppState
 	private Spinner<Integer> size;
 	private Table heightBrushTexture;
 	private Table splatBrushTexture;
-	private CheckBox wireframe;
+	// private CheckBox wireframe;
 	private TerrainInstance terrainInstance;
 	private Label totalMemory;
 	private Label freeMemory;
@@ -173,30 +177,35 @@ public class TerrainEditorAppState extends TerrainAppState
 	private FloatRangeSpinnerModel flattenElevationModel;
 	private IntegerRangeSpinnerModel splatSizeModel;
 	private float terrainHeight;
-	private RadioButtonGroup splatGroup;
+	private ButtonGroup<RadioButton<Integer>> splatGroup;
 	private int selectedTexture;
 	final static Logger LOG = Logger.getLogger(TerrainEditorAppState.class.getName());
 	private SplatControl texture0;
 	private SplatControl texture1;
 	private SplatControl texture2;
 	private SplatControl texture3;
-	private FancyPersistentWindow terrainEditWindow;
-	private boolean adjusting;
+	private PersistentWindow terrainEditWindow;
 	private Collection<String> imageResources;
-	private ComboBox<String> liquidPlane;
+	private ComboBox<LiquidPlane> liquidPlane;
 	private Spinner<Float> elevation;
 	private Spinner<Float> baseline;
 	private TerrainEditorMode mode = TerrainEditorMode.SELECT;
 	private Vector2f cursor = new Vector2f(0, 0);
-	private FancyButton setElevation;
-	private CheckBox snapToQuad;
+	private PushButton setElevation;
+	// private CheckBox snapToQuad;
 	private ComboBox<String> tileEnvironment;
 	private Geometry gridGeom;
 	private int paints;
-	private RadioButton smooth;
+	private RadioButton<Integer> smooth;
 	private Node arrowSpatial;
 	private ModeTab selectTab;
 	private Spinner<Float> newElevation;
+	private ActionMenu editMenu;
+	private AppAction undoAction;
+	private AppAction redoAction;
+	private ActionMenu viewMenu;
+	private AppAction wireframeAction;
+	private AppAction snapToQuadAction;
 
 	public static File getDirectoryForTerrainTemplate(Assets assets, TerrainTemplateConfiguration terrainTemplate) {
 		final String terrainDir = terrainTemplate.getAssetFolder();
@@ -221,8 +230,8 @@ public class TerrainEditorAppState extends TerrainAppState
 				// We current have an viewer, make an editor
 				stateManager.detach(viewer);
 				final TerrainEditorAppState terrainEditorAppState = new TerrainEditorAppState(viewer.terrainLoader,
-						viewer.getPreferences(), viewer.light, viewer.mappableNode, viewer.propFactory, viewer.worldNode,
-						viewer.mouseManager);
+						viewer.getPreferences(), viewer.light, viewer.mappableNode, viewer.propFactory,
+						viewer.worldNode, viewer.mouseManager);
 				terrainEditorAppState.playerTile = viewer.playerTile;
 				terrainEditorAppState.viewLocation = viewer.viewLocation;
 				stateManager.attach(terrainEditorAppState);
@@ -232,8 +241,8 @@ public class TerrainEditorAppState extends TerrainAppState
 			// We current have an editor, make a viewer
 			LOG.info("Switching to terrain viewer");
 			stateManager.detach(editor);
-			final TerrainAppState terrainAppState = new TerrainAppState(editor.terrainLoader, editor.prefs, editor.light,
-					editor.mappableNode, editor.propFactory, editor.worldNode, editor.mouseManager);
+			final TerrainAppState terrainAppState = new TerrainAppState(editor.terrainLoader, editor.prefs,
+					editor.light, editor.mappableNode, editor.propFactory, editor.worldNode, editor.mouseManager);
 			terrainAppState.playerTile = editor.playerTile;
 			terrainAppState.viewLocation = editor.viewLocation;
 			stateManager.attach(terrainAppState);
@@ -241,8 +250,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		}
 	}
 
-	public TerrainEditorAppState(TerrainLoader terrainLoader, Preferences prefs, EnvironmentLight light, Node mappableNode,
-			EntityFactory propFactory, Node worldNode, MouseManager mouseManager) {
+	public TerrainEditorAppState(TerrainLoader terrainLoader, Preferences prefs, EnvironmentLight light,
+			Node mappableNode, EntityFactory propFactory, Node worldNode, MouseManager mouseManager) {
 		super(terrainLoader, prefs, light, mappableNode, propFactory, worldNode, mouseManager);
 		addPrefKeyPattern(TerrainConfig.TERRAIN_EDITOR + ".*");
 	}
@@ -251,81 +260,49 @@ public class TerrainEditorAppState extends TerrainAppState
 	protected void beforeTerrainInitialize() {
 		LOG.info("Initalizing terrain editing");
 
-		amountModel = new FloatRangeSpinnerModel(0.1f, 50, 0.1f,
-				prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT, TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT_DEFAULT));
-		sizeModel = new IntegerRangeSpinnerModel(1, 32, 1,
-				prefs.getInt(TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE, TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE_DEFAULT));
-		splatSizeModel = new IntegerRangeSpinnerModel(1, 32, 1,
-				prefs.getInt(TerrainConfig.TERRAIN_EDITOR_SPLAT_BRUSH_SIZE, TerrainConfig.TERRAIN_EDITOR_SPLAT_BRUSH_SIZE_DEFAULT));
-		splatRateModel = new FloatRangeSpinnerModel(0, 20, 0.1f,
-				prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE, TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE_DEFAULT));
+		amountModel = new FloatRangeSpinnerModel(0.1f, 50, 0.1f, prefs.getFloat(
+				TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT, TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT_DEFAULT));
+		sizeModel = new IntegerRangeSpinnerModel(1, 32, 1, prefs.getInt(TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE,
+				TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE_DEFAULT));
+		splatSizeModel = new IntegerRangeSpinnerModel(1, 32, 1, prefs.getInt(
+				TerrainConfig.TERRAIN_EDITOR_SPLAT_BRUSH_SIZE, TerrainConfig.TERRAIN_EDITOR_SPLAT_BRUSH_SIZE_DEFAULT));
+		splatRateModel = new FloatRangeSpinnerModel(0, 20, 0.1f, prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE,
+				TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE_DEFAULT));
 		flattenElevationModel = new FloatRangeSpinnerModel(-9999, 9999, 1f, 0f);
-		flattenSizeModel = new IntegerRangeSpinnerModel(1, 32, 1, prefs.getInt(TerrainConfig.TERRAIN_EDITOR_FLATTEN_BRUSH_SIZE,
-				TerrainConfig.TERRAIN_EDITOR_FLATTEN_BRUSH_SIZE_DEFAULT));
+		flattenSizeModel = new IntegerRangeSpinnerModel(1, 32, 1,
+				prefs.getInt(TerrainConfig.TERRAIN_EDITOR_FLATTEN_BRUSH_SIZE,
+						TerrainConfig.TERRAIN_EDITOR_FLATTEN_BRUSH_SIZE_DEFAULT));
 
 		terrainLoader.setReadOnly(false);
 		recreateCursor();
 
 		// Layer for some extra on screen buttons
-		layer = new Container(screen);
-		layer.setLayoutManager(new MigLayout(screen, "fill", "[][]push[][]", "[]push"));
-		app.getLayers(ZPriority.NORMAL).addChild(layer);
-
-		// Wireframe
-		wireframe = new CheckBox(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				prefs.putBoolean(TerrainConfig.TERRAIN_WIREFRAME, toggled);
-			}
-		};
-		wireframe
-				.setIsCheckedNoCallback(prefs.getBoolean(TerrainConfig.TERRAIN_WIREFRAME, TerrainConfig.TERRAIN_WIREFRAME_DEFAULT));
-		wireframe.setLabelText("Wireframe");
-		layer.addChild(wireframe);
-
-		// Snap to quad
-		snapToQuad = new CheckBox(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				prefs.putBoolean(TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD, toggled);
-			}
-		};
-		snapToQuad.setIsCheckedNoCallback(
-				prefs.getBoolean(TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD, TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD_DEFAULT));
-		snapToQuad.setLabelText("Snap To Quad");
-		layer.addChild(snapToQuad);
+		layer = new StyledContainer(screen);
+		layer.setLayoutManager(new MigLayout(screen, "fill", "[][]push[]", "[]push"));
+		app.getLayers(ZPriority.NORMAL).addElement(layer);
 
 		// Undo
-		undoButton = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				maybeDoUndo();
-			}
+		ActionAppState actions = app.getStateManager().getState(ActionAppState.class);
+		if (actions != null) {
+			actions.getMenuBar().addActionMenu(editMenu = new ActionMenu("Edit", 5));
+			actions.getMenuBar().addActionMenu(viewMenu = new ActionMenu("View", 7));
+			actions.getMenuBar().addAction(undoAction = new AppAction("Undo", evt -> maybeDoUndo()).setMenu("Edit")
+					.setInterval(SceneConstants.UNDO_REDO_REPEAT_INTERVAL));
+			actions.getMenuBar().addAction(redoAction = new AppAction("Redo", evt -> maybeDoRedo()).setMenu("Edit")
+					.setInterval(SceneConstants.UNDO_REDO_REPEAT_INTERVAL));
+			actions.getMenuBar().addAction(wireframeAction = new AppAction("Wireframe", evt -> {
+				prefs.putBoolean(TerrainConfig.TERRAIN_WIREFRAME, evt.getSourceAction().isActive());
+			}).setMenu("View").setStyle(Style.TOGGLE).setActive(
+					prefs.getBoolean(TerrainConfig.TERRAIN_WIREFRAME, TerrainConfig.TERRAIN_WIREFRAME_DEFAULT)));
+			actions.getMenuBar().addAction(snapToQuadAction = new AppAction("Snap To Quad", evt -> {
+				prefs.putBoolean(TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD, evt.getSourceAction().isActive());
+			}).setMenu("View").setStyle(Style.TOGGLE).setActive(prefs.getBoolean(
+					TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD, TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD_DEFAULT)));
+		}
 
-			@Override
-			public void onButtonStillPressedInterval() {
-				maybeDoUndo();
-			}
-		};
-		undoButton.setInterval(SceneConstants.UNDO_REDO_REPEAT_INTERVAL);
-		undoButton.setText("Undo");
-		layer.addChild(undoButton);
-
-		// Redo
-		redoButton = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				maybeDoRedo();
-			}
-
-			@Override
-			public void onButtonStillPressedInterval() {
-				maybeDoRedo();
-			}
-		};
-		redoButton.setInterval(SceneConstants.UNDO_REDO_REPEAT_INTERVAL);
-		redoButton.setText("Redo");
-		layer.addChild(redoButton);
+		// TODO totally bizarre, but without this last empty element , the
+		// penultimate element gets resized wrong
+		layer.addElement(new Label(screen));
 
 		// Input
 		app.getKeyMapManager().addMapping(MAPPING_UNDO);
@@ -355,7 +332,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		mouseManager.setRepeatDelay(TerrainConstants.MOUSE_REPEAT_DELAY);
 		mouseManager.setRepeatInterval(TerrainConstants.MOUSE_REPEAT_INTERVAL);
 		mouseManager.setMode(MouseManager.Mode.NORMAL);
-		imageResources = ((ServerAssetManager) app.getAssetManager()).getAssetNamesMatching(".*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif");
+		imageResources = ((ServerAssetManager) app.getAssetManager())
+				.getAssetNamesMatching(".*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif");
 		mouseManager.addListener(this);
 
 		recreateCursor();
@@ -388,8 +366,20 @@ public class TerrainEditorAppState extends TerrainAppState
 			gridGeom.removeFromParent();
 		}
 
+		ActionAppState actions = app.getStateManager().getState(ActionAppState.class);
+		if (actions != null) {
+			actions.getMenuBar().invalidate();
+			actions.getMenuBar().removeAction(undoAction);
+			actions.getMenuBar().removeAction(redoAction);
+			actions.getMenuBar().removeActionMenu(editMenu);
+			actions.getMenuBar().removeAction(wireframeAction);
+			actions.getMenuBar().removeAction(snapToQuadAction);
+			actions.getMenuBar().removeActionMenu(viewMenu);
+			actions.getMenuBar().validate();
+		}
+
 		statsUpdateTask.cancel();
-		app.getLayers(ZPriority.NORMAL).removeChild(layer);
+		app.getLayers(ZPriority.NORMAL).removeElement(layer);
 
 		undoManager.removeListener(undoListener);
 		app.getKeyMapManager().removeListener(this);
@@ -401,9 +391,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		mouseManager.setRepeatInterval(oldRepeatInterval);
 		mouseManager.removeListener(this);
 		mouseManager.setMode(oldMode);
-		new EffectHelper().effect(terrainEditWindow, Effect.EffectType.FadeOut, Effect.EffectEvent.Hide, UIConstants.UI_EFFECT_TIME)
-				.setDestroyOnHide(true);
-
+		terrainEditWindow.destroy();
 		terrainLoader.setReadOnly(true);
 	}
 
@@ -412,7 +400,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		super.playerTileChanged(loc);
 		recreateCursor();
 		if (selectTab != null && loc != null)
-			selectTab.setIsEnabled(loc.isValid());
+			selectTab.setEnabled(loc.isValid());
 		if (terrainEditWindow != null) {
 			terrainEditWindow.setWindowTitle(String.format("Terrain - %d,%d", loc.x, loc.y));
 			setSplatTabValues();
@@ -421,7 +409,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		if (page != null) {
 			TerrainTemplateConfiguration terrainTemplate = page.getTerrainTemplate();
 			String environment = terrainTemplate.getEnvironment();
-			tileEnvironment.setSelectedByValue(environment == null || StringUtils.isBlank(environment) ? "" : environment, false);
+			tileEnvironment.runAdjusting(() -> tileEnvironment
+					.setSelectedByValue(environment == null || StringUtils.isBlank(environment) ? "" : environment));
 		}
 	}
 
@@ -438,8 +427,8 @@ public class TerrainEditorAppState extends TerrainAppState
 	public void hover(MouseManager manager, Spatial spatial, ModifierKeysAppState mods) {
 	}
 
-	public void click(MouseManager manager, Spatial spatial, ModifierKeysAppState mods, int startModsMask, Vector3f contactPoint,
-			CollisionResults results, float tpf, boolean repeat) {
+	public void click(MouseManager manager, Spatial spatial, ModifierKeysAppState mods, int startModsMask,
+			Vector3f contactPoint, CollisionResults results, float tpf, boolean repeat) {
 		// We might click on the cursor in paint / editmode, this should paint
 		// the terrain underneath the cursor
 		paints = 0;
@@ -481,19 +470,20 @@ public class TerrainEditorAppState extends TerrainAppState
 				break;
 			}
 		}
-		screen.resetTabFocusElement();
+		screen.resetKeyboardFocus(null);
 	}
 
 	public void dragEnd(MouseManager manager, Spatial spatial, ModifierKeysAppState mods, int startModsMask) {
 		operationEnded();
 	}
 
-	public void dragStart(Vector3f click3d, MouseManager manager, Spatial spatial, ModifierKeysAppState mods, Vector3f direction) {
+	public void dragStart(Vector3f click3d, MouseManager manager, Spatial spatial, ModifierKeysAppState mods,
+			Vector3f direction) {
 		paints = 0;
 	}
 
-	public void drag(MouseManager manager, Spatial spatial, ModifierKeysAppState mods, Vector3f click3d, Vector3f lastClick3d,
-			float tpf, int startModsMask, CollisionResults results, Vector3f lookDir) {
+	public void drag(MouseManager manager, Spatial spatial, ModifierKeysAppState mods, Vector3f click3d,
+			Vector3f lastClick3d, float tpf, int startModsMask, CollisionResults results, Vector3f lookDir) {
 		if (spatial.equals(cursorHandle)) {
 			for (CollisionResult r : results) {
 				Vector3f v = r.getContactPoint();
@@ -515,18 +505,18 @@ public class TerrainEditorAppState extends TerrainAppState
 		switch (mode) {
 		case PAINT:
 			tabs.setSelectedTabIndex(1);
-			raise.setIsToggled(true);
+			raise.setState(true);
 			break;
 		case ERASE:
 			tabs.setSelectedTabIndex(1);
-			lower.setIsToggled(true);
+			lower.setState(true);
 			break;
 		case FLATTEN:
 			tabs.setSelectedTabIndex(2);
 			break;
 		case SMOOTH:
 			tabs.setSelectedTabIndex(1);
-			smooth.setIsToggled(true);
+			smooth.setState(true);
 			break;
 		case SELECT:
 			tabs.setSelectedTabIndex(0);
@@ -566,7 +556,7 @@ public class TerrainEditorAppState extends TerrainAppState
 
 		// Disable the flycams rise / fall if we press Ctrl, as we want to use Z
 		// as well
-		app.getExtendedFlyByCamera().setAllowRiseAndLower(mods.isCtrl());
+		app.getExtendedFlyByCamera().setAllowRiseAndLower(!mods.isCtrl());
 
 		reverseBrush = mods.isCtrl();
 		recreateCursor();
@@ -610,13 +600,14 @@ public class TerrainEditorAppState extends TerrainAppState
 		for (TerrainInstance t : terrainLoader.getLoaded()) {
 			if (t.isNeedsEdgeFix()) {
 				terrainLoader.syncEdges(t);
-				
-//				t.copyQuadHeightmapToStoredHeightmap();
-//				if (terrainLoader.syncEdges(t)) {
-//					Icelib.dumpTrace();
-//					LOG.info("Operation ended. There are edges to sync, refreshing from heightmap data");
-//					t.copyStoredHeightmapToQuad();
-//				}
+
+				// t.copyQuadHeightmapToStoredHeightmap();
+				// if (terrainLoader.syncEdges(t)) {
+				// Icelib.dumpTrace();
+				// LOG.info("Operation ended. There are edges to sync,
+				// refreshing from heightmap data");
+				// t.copyStoredHeightmapToQuad();
+				// }
 			}
 		}
 	}
@@ -629,7 +620,7 @@ public class TerrainEditorAppState extends TerrainAppState
 			app.enqueue(new Callable<Void>() {
 				@Override
 				public Void call() throws Exception {
-					wireframe.setIsCheckedNoCallback(
+					wireframeAction.setActive(
 							prefs.getBoolean(TerrainConfig.TERRAIN_WIREFRAME, TerrainConfig.TERRAIN_WIREFRAME_DEFAULT));
 					return null;
 				}
@@ -639,7 +630,7 @@ public class TerrainEditorAppState extends TerrainAppState
 			app.enqueue(new Callable<Void>() {
 				@Override
 				public Void call() throws Exception {
-					snapToQuad.setIsCheckedNoCallback(prefs.getBoolean(TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD,
+					snapToQuadAction.setActive(prefs.getBoolean(TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD,
 							TerrainConfig.TERRAIN_SNAP_BRUSH_TO_QUAD_DEFAULT));
 					return null;
 				}
@@ -658,8 +649,8 @@ public class TerrainEditorAppState extends TerrainAppState
 			recreateCursor();
 			recreateFlattenBrush();
 		} else if (evt.getKey().equals(TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE)) {
-			splatRate.setSelectedValue(
-					prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE, TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE_DEFAULT));
+			splatRate.setSelectedValue(prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE,
+					TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE_DEFAULT));
 			recreateSplatBrush();
 		} else if (evt.getKey().equals(TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE)) {
 			size.setSelectedValue(prefs.getInt(TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE,
@@ -668,14 +659,14 @@ public class TerrainEditorAppState extends TerrainAppState
 			recreateCursor();
 			recreateHeightBrush();
 		} else if (evt.getKey().equals(TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT)) {
-			amount.setSelectedValue(
-					prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT, TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT_DEFAULT));
+			amount.setSelectedValue(prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT,
+					TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT_DEFAULT));
 			recreateHeightBrush();
 		} else if (evt.getKey().equals(TerrainConfig.TERRAIN_EDITOR_BASELINE)
 				|| evt.getKey().equals(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE)) {
 			checkBaselineGrid();
-			baseline.getSpinnerModel().setValueFromString(String
-					.valueOf(prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_BASELINE, TerrainConfig.TERRAIN_EDITOR_BASELINE_DEFAULT)));
+			baseline.runAdjusting(() -> baseline.getSpinnerModel().setValueFromString(String.valueOf(prefs
+					.getFloat(TerrainConfig.TERRAIN_EDITOR_BASELINE, TerrainConfig.TERRAIN_EDITOR_BASELINE_DEFAULT))));
 		}
 
 	}
@@ -723,7 +714,8 @@ public class TerrainEditorAppState extends TerrainAppState
 	private void repositionBaseGrid() {
 		if (gridGeom != null) {
 			gridGeom.setLocalTranslation(cursor.x - (BASELINE_GRID_SIZE / 2),
-					prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_BASELINE, TerrainConfig.TERRAIN_EDITOR_BASELINE_DEFAULT) + 0.2f,
+					prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_BASELINE, TerrainConfig.TERRAIN_EDITOR_BASELINE_DEFAULT)
+							+ 0.2f,
 					cursor.y - (BASELINE_GRID_SIZE / 2));
 		}
 
@@ -735,32 +727,30 @@ public class TerrainEditorAppState extends TerrainAppState
 		}
 	}
 
-	private Table createBrushSelector(final Runnable onChange) {
-		Table brushSelector = new Table(screen) {
-			@Override
-			public void onChange() {
-				onChange.run();
-			}
-		};
+	private Table createBrushSelector(final UIChangeListener<Table, Map<Integer, List<Integer>>> onChange) {
+		Table brushSelector = new Table(screen);
+		brushSelector.onChanged(onChange);
 		brushSelector.setSelectionMode(Table.SelectionMode.ROW);
 		brushSelector.addColumn("Image");
 		brushSelector.addColumn("Name");
 		brushSelector.setHeadersVisible(false);
-		for (String a : ((ServerAssetManager) app.getAssetManager()).getAssetNamesMatching("Textures/Brushes/.*\\.png")) {
-			Table.TableRow r = new Table.TableRow(screen, brushSelector, UIDUtil.getUID(), a);
-			Table.TableCell c1 = new Table.TableCell(screen, a);
-			c1.setPreferredDimensions(new Vector2f(32, 32));
-			r.addChild(c1);
-			Element img = new Element(screen, UIDUtil.getUID(), new Vector2f(32, 32), Vector4f.ZERO, a);
+		for (String a : ((ServerAssetManager) app.getAssetManager())
+				.getAssetNamesMatching("Textures/Brushes/.*\\.png")) {
+			TableRow r = new TableRow(screen, brushSelector, a);
+			TableCell c1 = new TableCell(screen, a);
+			c1.setPreferredDimensions(new Size(32, 32));
+			r.addElement(c1);
+			BaseElement img = new BaseElement(screen, new Size(32, 32));
+			img.setTexture(a);
 			img.setIgnoreMouse(true);
-			c1.addChild(img);
-			Table.TableCell c2 = new Table.TableCell(screen, Icelib.getBaseFilename(a), a);
-			c2.setPreferredDimensions(new Vector2f(32, 40));
-			r.addChild(c2);
+			c1.addElement(img);
+			TableCell c2 = new TableCell(screen, Icelib.getBaseFilename(a), a);
+			c2.setPreferredDimensions(new Size(32, 40));
+			r.addElement(c2);
 			brushSelector.addRow(r);
 		}
 		if (brushSelector.getRowCount() > 0) {
-			brushSelector.setSelectedRowIndex(0);
+			brushSelector.runAdjusting(() -> brushSelector.setSelectedRowIndex(0));
 		}
 		brushSelector.setColumnResizeMode(Table.ColumnResizeMode.AUTO_ALL);
 		return brushSelector;
@@ -818,7 +808,7 @@ public class TerrainEditorAppState extends TerrainAppState
 	private boolean repositionCursor(boolean y) {
 		// Snap cursor (a grid) to terrain quads when flattening
 		float hs = 0;
-		if (snapToQuad != null && snapToQuad.getIsChecked()) {
+		if (snapToQuadAction != null && snapToQuadAction.isActive()) {
 			TerrainTemplateConfiguration cfg = getConfigurationForLocation();
 			if (cfg != null) {
 				if (mode.equals(TerrainEditorMode.SPLAT)) {
@@ -838,7 +828,8 @@ public class TerrainEditorAppState extends TerrainAppState
 
 		terrainInstance = terrainLoader.getPageAtWorldPosition(cursor);
 		if (y) {
-			terrainHeight = terrainInstance == null ? Float.MIN_VALUE : terrainInstance.getHeightAtWorldPosition(cursor);
+			terrainHeight = terrainInstance == null ? Float.MIN_VALUE
+					: terrainInstance.getHeightAtWorldPosition(cursor);
 			if (terrainHeight == Float.MIN_VALUE) {
 				terrainHeight = 0;
 			}
@@ -864,6 +855,9 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	private void recreateCursor() {
+		if (!isInitialized())
+			return;
+
 		int size;
 		final float brushCursorFactor = TerrainConstants.EDITOR_BRUSH_SCALE;
 		if (isValidForEditing() && cursorSpatial == null) {
@@ -1010,25 +1004,25 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	private void destroyCursor() {
-		if(cursorSpatial != null)
+		if (cursorSpatial != null)
 			cursorSpatial.removeFromParent();
 		cursorSpatial = null;
 	}
 
 	private void setSplatTabValues() {
-		adjusting = true;
 		try {
 			TerrainInstance page = playerTile == null ? null : getPage(playerTile);
 
 			if (page != null) {
 				final TerrainTemplateConfiguration configuration = page.getTerrainTemplate();
-				final TerrainTemplateConfiguration.LiquidPlaneConfiguration config = configuration.getLiquidPlaneConfiguration();
-				if (config != null && StringUtils.isNotBlank(config.getMaterial())) {
-					final String liquidName = config.getMaterial();
+				final TerrainTemplateConfiguration.LiquidPlaneConfiguration config = configuration
+						.getLiquidPlaneConfiguration();
+				if (config != null && config.getMaterial() != null) {
+					final LiquidPlane liquidName = config.getMaterial();
 					LOG.info(String.format("Selecting liquid %s", liquidName));
-					liquidPlane.setSelectedByValue(liquidName, false);
-					elevation.setSelectedValue(config.getElevation());
-					elevation.setIsEnabled(true);
+					liquidPlane.runAdjusting(() -> liquidPlane.setSelectedByValue(liquidName));
+					elevation.runAdjusting(() -> elevation.setSelectedValue(config.getElevation()));
+					elevation.setEnabled(true);
 				} else {
 					noLiquid();
 				}
@@ -1039,24 +1033,27 @@ public class TerrainEditorAppState extends TerrainAppState
 			if (texture0 != null) {
 				if (page != null) {
 					final TerrainTemplateConfiguration configuration = page.getTerrainTemplate();
-					texture0.setIsEnabled(true);
-					texture0.setValue(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting0());
-					texture1.setIsEnabled(true);
-					texture1.setValue(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting1());
-					texture2.setIsEnabled(true);
-					texture2.setValue(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting2());
-					texture3.setIsEnabled(true);
-					texture3.setValue(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting3());
+					texture0.setEnabled(true);
+					texture0.setValue(
+							SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting0());
+					texture1.setEnabled(true);
+					texture1.setValue(
+							SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting1());
+					texture2.setEnabled(true);
+					texture2.setValue(
+							SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting2());
+					texture3.setEnabled(true);
+					texture3.setValue(
+							SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + configuration.getTextureSplatting3());
 				} else {
-					texture0.setIsEnabled(false);
-					texture1.setIsEnabled(false);
-					texture2.setIsEnabled(false);
-					texture3.setIsEnabled(false);
+					texture0.setEnabled(false);
+					texture1.setEnabled(false);
+					texture2.setEnabled(false);
+					texture3.setEnabled(false);
 				}
 			}
 
 		} finally {
-			adjusting = false;
 			setAvailable();
 		}
 
@@ -1066,7 +1063,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		statsUpdateTask = app.getAlarm().timed(new Callable<Void>() {
 			public Void call() throws Exception {
 				setMemoryValues();
-				rescheduleStatsUpdate();
+				if (isEnabled())
+					rescheduleStatsUpdate();
 				return null;
 			}
 		}, 1);
@@ -1079,17 +1077,14 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	private void noLiquid() {
-		liquidPlane.setSelectedByValue("None", false);
+		liquidPlane.runAdjusting(() -> liquidPlane.setSelectedByValue(LiquidPlane.NONE));
 		elevation.setSelectedValue(0f);
-		elevation.setIsEnabled(false);
+		elevation.setEnabled(false);
 	}
 
 	private void terrainEditWindow() {
-		adjusting = true;
-
-		terrainEditWindow = new FancyPersistentWindow(screen, SceneConfig.TERRAIN,
-				screen.getStyle("Common").getInt("defaultWindowOffset"), VPosition.MIDDLE, HPosition.RIGHT, new Vector2f(300, 560),
-				FancyWindow.Size.SMALL, true, SaveType.POSITION_AND_SIZE, prefs) {
+		terrainEditWindow = new PersistentWindow(screen, SceneConfig.TERRAIN, VAlign.Center, Align.Right,
+				new Size(300, 560), true, SaveType.POSITION_AND_SIZE, prefs) {
 			@Override
 			protected void onCloseWindow() {
 				super.onCloseWindow();
@@ -1099,29 +1094,25 @@ public class TerrainEditorAppState extends TerrainAppState
 			@Override
 			protected boolean canClose() {
 				if (terrainLoader.isNeedsSave()) {
-					final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE, true) {
+					final DialogBox dialog = new DialogBox(screen, new Vector2f(15, 15), true) {
 						@Override
 						public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-							hideWindow();
+							hide();
 						}
 
 						@Override
 						public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
-							hideWindow();
+							hide();
 							closeTerrain();
 						}
 					};
 					dialog.setDestroyOnHide(true);
-					dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
+					ElementStyle.warningColor(dialog.getDragBar());
 					dialog.setWindowTitle("Confirm Close Template");
 					dialog.setButtonOkText("Close");
-					dialog.setMsg("You have unsaved edits! Are you sure you wish to close this template?");
-					dialog.setIsResizable(false);
-					dialog.setIsMovable(false);
-					dialog.sizeToContent();
-					UIUtil.center(screen, dialog);
-					screen.addElement(dialog, null, true);
-					dialog.showAsModal(true);
+					dialog.setText("You have unsaved edits! Are you sure you wish to close this template?");
+					dialog.setModal(true);
+					screen.showElement(dialog, ScreenLayoutConstraints.center);
 					return false;
 				}
 				return true;
@@ -1129,53 +1120,87 @@ public class TerrainEditorAppState extends TerrainAppState
 		};
 		terrainEditWindow.setMinimizable(true);
 		terrainEditWindow.setWindowTitle("Terrain");
-		final Element contentArea = terrainEditWindow.getContentArea();
+		final BaseElement contentArea = terrainEditWindow.getContentArea();
 		contentArea.setLayoutManager(new BorderLayout(4, 4));
 
-		tabs = new IconTabControl(screen);
-		tabs.addTabWithIcon("Select Mode", "Interface/Styles/Gold/Common/Icons/select.png");
-		tabs.addTabChild(0, selectTab());
-		tabs.addTabWithIcon("Raise or lower terrain", "Interface/Styles/Gold/Common/Icons/brush.png");
-		tabs.addTabChild(1, paintTab());
-		tabs.addTabWithIcon("Flatten terrain", "Interface/Styles/Gold/Common/Icons/roller.png");
-		tabs.addTabChild(2, flattenTab());
-		tabs.addTabWithIcon("Paint terrain textures", "Interface/Styles/Gold/Common/Icons/splat.png");
-		tabs.addTabChild(3, splatTab());
-		tabs.addTabWithIcon("Adjust liquid plane", "Interface/Styles/Gold/Common/Icons/wave.png");
-		tabs.addTabChild(4, liquidTab());
+		tabs = new TabControl(screen);
+		tabs.addStyleClass("editor-tabs");
+		tabs.addTab(new TabButton(screen) {
+			{
+				FontAwesome.MOUSE_POINTER.button(24, this);
+			}
+		}, selectTab());
 
-		contentArea.addChild(tabs);
+		tabs.addTab(new TabButton(screen) {
+			{
+				FontAwesome.PAINT_BRUSH.button(24, this);
+			}
+		}, paintTab());
+
+		tabs.addTab(new TabButton(screen) {
+			{
+				FontAwesome.ERASER.button(24, this);
+			}
+		}, flattenTab());
+
+		tabs.addTab(new TabButton(screen) {
+			{
+				FontAwesome.ADJUST.button(24, this);
+			}
+		}, splatTab());
+
+		tabs.addTab(new TabButton(screen) {
+			{
+				FontAwesome.SHIP.button(24, this);
+			}
+		}, liquidTab());
+		tabs.onChange(evt -> {
+			if(evt.getNewValue() == 0 || evt.getNewValue() == 2) {
+				doSetMode(TerrainEditorMode.SELECT);
+			}
+			else if(evt.getNewValue() == 1) {
+				doSetMode(TerrainEditorMode.PAINT);
+			}
+			else if(evt.getNewValue() == 3) {
+				doSetMode(TerrainEditorMode.SPLAT);
+			}
+		});
+		contentArea.addElement(tabs);
 
 		// Buttons
-		saveEnv = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				save();
+		saveEnv = new PushButton(screen) {
+			{
+				setStyleClass("fancy");
 			}
 		};
+		saveEnv.onMouseReleased(evt -> save());
 		saveEnv.setText("Save");
+		FontAwesome.SAVE.button(24, saveEnv);
 
-		resetEnv = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				if (!adjusting && playerTile != null) {
-					TerrainInstance page = getPage(playerTile);
-					page.getTerrainTemplate().reset();
-					reloadTerrain();
-				}
+		resetEnv = new PushButton(screen) {
+			{
+				setStyleClass("fancy");
 			}
 		};
+		resetEnv.onMouseReleased(evt -> {
+			if (!evt.getElement().isAdjusting() && playerTile != null) {
+				TerrainInstance page = getPage(playerTile);
+				page.getTerrainTemplate().reset();
+				reloadTerrain();
+			}
+		});
 		resetEnv.setText("Reset");
+		FontAwesome.BAN.button(24, resetEnv);
 
-		Element bottom = new Element(screen);
+		BaseElement bottom = new BaseElement(screen);
 
 		bottom.setLayoutManager(new FlowLayout(8, BitmapFont.Align.Center));
-		bottom.addChild(saveEnv);
-		bottom.addChild(resetEnv);
-		contentArea.addChild(bottom, BorderLayout.Border.SOUTH);
+		bottom.addElement(saveEnv);
+		bottom.addElement(resetEnv);
+		contentArea.addElement(bottom, Border.SOUTH);
 
 		screen.addElement(terrainEditWindow);
-		terrainEditWindow.showWindow();
+		terrainEditWindow.show();
 		// terrainEditWindow.setIsResizable(false);
 
 		recreateFlattenBrush();
@@ -1183,13 +1208,11 @@ public class TerrainEditorAppState extends TerrainAppState
 		recreateSplatBrush();
 		checkBaselineGrid();
 
-		adjusting = false;
-
 		setAvailable();
 	}
 
 	private void save() {
-		if (!adjusting && playerTile != null) {
+		if (playerTile != null) {
 			int saved = 0;
 			for (TerrainInstance page : terrainLoader.getLoaded()) {
 				LOG.info(String.format("Maybe save %s", page.getPage()));
@@ -1220,7 +1243,8 @@ public class TerrainEditorAppState extends TerrainAppState
 
 	private void writeCoverage(TerrainInstance page) throws FileNotFoundException, IOException {
 
-		String coverageName = format(page.getTerrainTemplate().getTextureCoverageFormat(), page.getPage().x, page.getPage().y);
+		String coverageName = format(page.getTerrainTemplate().getTextureCoverageFormat(), page.getPage().x,
+				page.getPage().y);
 		String coveragePath = String.format("%s/%s", page.getTerrainTemplate().getAssetFolder(), coverageName);
 
 		Image img = page.getCoverage();
@@ -1234,7 +1258,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		}
 	}
 
-	private void saveHeightmap(TerrainInstance page) throws IOException, IllegalArgumentException, FileNotFoundException {
+	private void saveHeightmap(TerrainInstance page)
+			throws IOException, IllegalArgumentException, FileNotFoundException {
 		SaveableHeightMap hm = (SaveableHeightMap) page.getHeightmap();
 		page.copyQuadHeightmapToStoredHeightmap();
 		Image img = hm.getColorImage();
@@ -1242,7 +1267,7 @@ public class TerrainEditorAppState extends TerrainAppState
 		// TODO depth not working?
 		int depth;
 		switch (img.getFormat()) {
-		case Luminance16:
+		case Luminance16F:
 			depth = 16;
 			break;
 		default:
@@ -1255,8 +1280,8 @@ public class TerrainEditorAppState extends TerrainAppState
 		File heightmapFile = Icelib.makeParent(app.getAssets().getExternalAssetFile(heightmapPath));
 		FileOutputStream out = new FileOutputStream(heightmapFile);
 		try {
-			LOG.info(String.format("Saving greyscale image based heightmap of %d x %d to %s (%d bpp %s)", img.getWidth(),
-					img.getHeight(), heightmapFile, depth, img.getFormat()));
+			LOG.info(String.format("Saving greyscale image based heightmap of %d x %d to %s (%d bpp %s)",
+					img.getWidth(), img.getHeight(), heightmapFile, depth, img.getFormat()));
 			hm.save(out, false, false);
 			// saveAs16PNG(img, out);
 		} finally {
@@ -1278,7 +1303,7 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	@SuppressWarnings("serial")
-	class SetSplatCommand implements UndoManager.UndoableCommand {
+	class SetSplatCommand implements UndoableCommand {
 
 		private final int splat;
 		private final String newImage;
@@ -1352,497 +1377,450 @@ public class TerrainEditorAppState extends TerrainAppState
 				"[shrink 0][shrink 0][shrink 0][shrink 0][shrink 0][shrink 0][shrink 0][grow][shrink 0][shrink 0]"));
 
 		Form f = new Form(screen);
-		splatGroup = new RadioButtonGroup(screen) {
-			@Override
-			public void onSelect(int index, Button value) {
-				if (!adjusting) {
-					selectedTexture = index;
-					recreateSplatBrush();
-					recreateCursor();
-				}
-			}
-		};
+		splatGroup = new ButtonGroup<RadioButton<Integer>>();
 
 		// Splats
-		toolOptions.addChild(ElementStyle.medium(screen, new Label("Layer", screen), true, false), "span 3");
+		toolOptions.addElement(ElementStyle.medium(new Label("Layer", screen), true, false), "span 3");
 
 		// Texture 0
-		RadioButton t0 = new RadioButton(screen);
+		RadioButton<Integer> t0 = new RadioButton<Integer>(screen).setValue(0);
 		splatGroup.addButton(t0);
 		texture0 = new SplatControl(screen, prefs, imageResources) {
 			@Override
 			protected void onChange(String dir, String newResource) {
-				undoManager.storeAndExecute(new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 0));
+				undoManager.storeAndExecute(
+						new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 0));
 			}
 		};
-		toolOptions.addChild(ElementStyle.normal(screen, new Label("A", screen), true, false));
-		toolOptions.addChild(f.addFormElement(t0));
-		toolOptions.addChild(texture0, "growx");
+		toolOptions.addElement(ElementStyle.normal(new Label("A", screen), true, false));
+		toolOptions.addElement(f.addFormElement(t0));
+		toolOptions.addElement(texture0, "growx");
 		f.addFormElement(texture0);
 
 		// Texture 1
-		RadioButton t1 = new RadioButton(screen);
+		RadioButton<Integer> t1 = new RadioButton<Integer>(screen).setValue(1);
 		splatGroup.addButton(t1);
 		texture1 = new SplatControl(screen, prefs, imageResources) {
 			@Override
 			protected void onChange(String dir, String newResource) {
-				undoManager.storeAndExecute(new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 1));
+				undoManager.storeAndExecute(
+						new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 1));
 			}
 		};
-		toolOptions.addChild(ElementStyle.normal(screen, new Label("R", screen), true, false));
-		toolOptions.addChild(t1);
-		toolOptions.addChild(texture1, "growx");
+		toolOptions.addElement(ElementStyle.normal(new Label("R", screen), true, false));
+		toolOptions.addElement(t1);
+		toolOptions.addElement(texture1, "growx");
 		f.addFormElement(texture1);
 
 		// Texture 2
-		RadioButton t2 = new RadioButton(screen);
+		RadioButton<Integer> t2 = new RadioButton<Integer>(screen).setValue(2);
 		splatGroup.addButton(t2);
 		texture2 = new SplatControl(screen, prefs, imageResources) {
 			@Override
 			protected void onChange(String dir, String newResource) {
-				undoManager.storeAndExecute(new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 2));
+				undoManager.storeAndExecute(
+						new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 2));
 			}
 		};
 		f.addFormElement(texture2);
-		toolOptions.addChild(ElementStyle.normal(screen, new Label("G", screen), true, false));
-		toolOptions.addChild(t2);
-		toolOptions.addChild(texture2, "growx");
+		toolOptions.addElement(ElementStyle.normal(new Label("G", screen), true, false));
+		toolOptions.addElement(t2);
+		toolOptions.addElement(texture2, "growx");
 
 		// Texture 3
-		RadioButton t3 = new RadioButton(screen);
+		RadioButton<Integer> t3 = new RadioButton<Integer>(screen).setValue(3);
 		splatGroup.addButton(t3);
 		texture3 = new SplatControl(screen, prefs, imageResources) {
 			@Override
 			protected void onChange(String dir, String newResource) {
-				undoManager.storeAndExecute(new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 3));
+				undoManager.storeAndExecute(
+						new SetSplatCommand(getPage(playerTile), dir, Icelib.getFilename(newResource), 3));
 			}
 		};
 		f.addFormElement(texture3);
-		toolOptions.addChild(ElementStyle.normal(screen, new Label("B", screen), true, false));
-		toolOptions.addChild(t3);
-		toolOptions.addChild(texture3, "growx");
+		toolOptions.addElement(ElementStyle.normal(new Label("B", screen), true, false));
+		toolOptions.addElement(t3);
+		toolOptions.addElement(texture3, "growx");
 
 		// Actions
-		Container c = new Container(new FlowLayout(4, Align.Center));
-		c.addChild(new ButtonAdapter(screen, "Copy") {
+		StyledContainer c = new StyledContainer(new FlowLayout(4, Align.Center));
+		c.addElement(new PushButton(screen, "Copy").onMouseReleased(evt -> {
+			StringWriter sw = new StringWriter();
+			PrintWriter pw = new PrintWriter(sw, true);
+			pw.println(texture0.getValue());
+			pw.println(texture1.getValue());
+			pw.println(texture2.getValue());
+			pw.println(texture3.getValue());
+			pw.close();
+			ToolKit.get().setClipboardText(sw.toString());
+			info("Splat images copied to clipboard");
+		}));
+		c.addElement(new PushButton(screen, "Paste").onMouseReleased(evt -> {
 
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				StringWriter sw = new StringWriter();
-				PrintWriter pw = new PrintWriter(sw, true);
-				pw.println(texture0.getValue());
-				pw.println(texture1.getValue());
-				pw.println(texture2.getValue());
-				pw.println(texture3.getValue());
-				pw.close();
-				screen.setClipboardText(sw.toString());
-				info("Splat images copied to clipboard");
-			}
-
-		});
-		c.addChild(new ButtonAdapter(screen, "Paste") {
-
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				BufferedReader br = new BufferedReader(new StringReader(screen.getClipboardText()));
-				try {
-					String line = br.readLine();
+			BufferedReader br = new BufferedReader(new StringReader(ToolKit.get().getClipboardText()));
+			try {
+				String line = br.readLine();
+				if (line != null) {
+					texture0.setValueWithCallback(line);
+					line = br.readLine();
 					if (line != null) {
-						texture0.setValueWithCallback(line);
+						texture1.setValueWithCallback(line);
 						line = br.readLine();
 						if (line != null) {
-							texture1.setValueWithCallback(line);
+							texture2.setValueWithCallback(line);
 							line = br.readLine();
 							if (line != null) {
-								texture2.setValueWithCallback(line);
-								line = br.readLine();
-								if (line != null) {
-									texture3.setValueWithCallback(line);
-								}
+								texture3.setValueWithCallback(line);
 							}
 						}
-						info("Splat images pasted from clipboard");
 					}
-				} catch (IOException ioe) {
-					// Wont' happen?
+					info("Splat images pasted from clipboard");
 				}
+			} catch (IOException ioe) {
+				// Wont' happen?
 			}
-
-		});
-		toolOptions.addChild(c, "span 3");
+		}));
+		toolOptions.addElement(c, "span 3");
 
 		// Set inital selection
 		splatGroup.setSelected(selectedTexture);
 
 		// Brush
-		toolOptions.addChild(ElementStyle.medium(screen, new Label("Brush", screen), true, false), "span 3");
+		toolOptions.addElement(ElementStyle.medium(new Label("Brush", screen), true, false), "span 3");
 
-		toolOptions.addChild(splatBrushTexture = createBrushSelector(new Runnable() {
-			public void run() {
-				if (splatBrushTexture != null) {
-					recreateSplatBrush();
-				}
-			}
+		toolOptions.addElement(splatBrushTexture = createBrushSelector((evt) -> {
+			if (!evt.getSource().isAdjusting())
+				recreateSplatBrush();
 		}), "growx, growy, span 3");
 
 		// Other options
-		Container other = new Container(screen);
+		StyledContainer other = new StyledContainer(screen);
 		other.setLayoutManager(new MigLayout(screen, "wrap 2", "[][fill, grow]", "[][][]"));
 
 		// Brush Size
-		other.addChild(new Label("Size:", screen));
-		splatSize = new Spinner<Integer>(screen, Orientation.HORIZONTAL, false) {
-			@Override
-			public void onChange(Integer value) {
-				prefs.putInt(TerrainConfig.TERRAIN_EDITOR_SPLAT_BRUSH_SIZE, value);
-			}
-		};
+		other.addElement(new Label("Size:", screen));
+		splatSize = new Spinner<Integer>(screen, Orientation.HORIZONTAL, false);
+		splatSize.onChange(evt -> prefs.putInt(TerrainConfig.TERRAIN_EDITOR_SPLAT_BRUSH_SIZE, evt.getNewValue()));
 		splatSize.setInterval(10f);
 		splatSize.setSpinnerModel(splatSizeModel);
 		f.addFormElement(splatSize);
-		other.addChild(splatSize);
+		other.addElement(splatSize);
 
 		// Brush strength
-		other.addChild(new Label("Rate:", screen));
-		splatRate = new Spinner<Float>(screen, Orientation.HORIZONTAL, false) {
-			@Override
-			public void onChange(Float value) {
-				prefs.putFloat(TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE, value);
-			}
-		};
+		other.addElement(new Label("Rate:", screen));
+		splatRate = new Spinner<Float>(screen, Orientation.HORIZONTAL, false);
+		splatRate.onChange(evt -> prefs.putFloat(TerrainConfig.TERRAIN_EDITOR_SPLAT_RATE, evt.getNewValue()));
 		splatRate.setInterval(25);
 		splatRate.setSpinnerModel(splatRateModel);
 		f.addFormElement(splatRate);
-		other.addChild(splatRate);
+		other.addElement(splatRate);
 
 		//
-		toolOptions.addChild(other, "span 3, growx");
+		toolOptions.addElement(other, "span 3, growx");
 
-		recreateHeightBrush();
+		// Events
 
-		recreateSplatBrush();
+		splatGroup.onChange(evt -> {
+			selectedTexture = evt.getSource().getSelected().getValue();
+			recreateSplatBrush();
+			recreateCursor();
+		});
+
 		return toolOptions;
 	}
 
 	private TabPanelContent paintTab() {
-		final RadioButtonGroup paintGroup = new RadioButtonGroup(screen) {
-			@Override
-			public void onSelect(int index, Button value) {
-				switch (index) {
-				case 0:
-					mode = TerrainEditorMode.PAINT;
-					break;
-				case 1:
-					mode = TerrainEditorMode.ERASE;
-					break;
-				case 2:
-					mode = TerrainEditorMode.SMOOTH;
-					break;
-				}
-				recreateHeightBrush();
-				recreateCursor();
-			}
-		};
-		TabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.PAINT) {
-			@Override
-			public void childShow() {
-				super.childShow();
-				paintGroup.setSelected(mode.equals(TerrainEditorMode.PAINT) ? 0 : 1);
-			}
-		};
-		toolOptions.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[100:100:][fill, grow]", "[][][][][][fill,grow]"));
+		final ButtonGroup<RadioButton<Integer>> paintGroup = new ButtonGroup<RadioButton<Integer>>();
+		TabPanelContent toolOptions = new ModeTab(screen, TerrainEditorMode.PAINT);
+		paintGroup.setSelected(mode.equals(TerrainEditorMode.PAINT) ? 0 : 1);
+		toolOptions.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[100:100:][grow]",
+				"[shrink 0][shrink 0][shrink 0][shrink 0][shrink 0][grow]"));
 
 		// Brush Size
-		toolOptions.addChild(new Label("Brush Size:", screen));
-		size = new Spinner<Integer>(screen, Orientation.HORIZONTAL, false) {
-			@Override
-			public void onChange(Integer value) {
-				prefs.putInt(TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE, value);
-			}
-		};
+		toolOptions.addElement(new Label("Brush Size:", screen));
+		size = new Spinner<Integer>(screen, Orientation.HORIZONTAL, false);
+		size.onChange(evt -> prefs.putInt(TerrainConfig.TERRAIN_EDITOR_PAINT_BRUSH_SIZE, evt.getNewValue()));
 		size.setInterval(10f);
 		size.setSpinnerModel(sizeModel);
-		toolOptions.addChild(size);
+		toolOptions.addElement(size);
 
 		// Brush strength
-		toolOptions.addChild(new Label("Amount:", screen));
-		amount = new Spinner<Float>(screen, Orientation.HORIZONTAL, false) {
-			@Override
-			public void onChange(Float value) {
-				prefs.putFloat(TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT, value);
-			}
-		};
+		toolOptions.addElement(new Label("Amount:", screen));
+		amount = new Spinner<Float>(screen, Orientation.HORIZONTAL, false);
+		amount.onChange(evt -> prefs.putFloat(TerrainConfig.TERRAIN_EDITOR_PAINT_AMOUNT, evt.getNewValue()));
 		amount.setInterval(100);
 		amount.setSpinnerModel(amountModel);
-		toolOptions.addChild(amount);
+		toolOptions.addElement(amount);
 
-		raise = new RadioButton(screen);
-		raise.setLabelText("Raise");
+		raise = new RadioButton<Integer>(screen).setValue(0);
+		raise.setText("Raise");
 		paintGroup.addButton(raise);
-		toolOptions.addChild(raise, "gapleft 32, growx, span 2");
-		lower = new RadioButton(screen);
-		lower.setLabelText("Lower");
+		toolOptions.addElement(raise, "gapleft 32, growx, span 2");
+		lower = new RadioButton<Integer>(screen).setValue(1);
+		lower.setText("Lower");
 		paintGroup.addButton(lower);
-		toolOptions.addChild(lower, "gapleft 32, growx, span 2");
-		smooth = new RadioButton(screen);
-		smooth.setLabelText("Smooth");
+		toolOptions.addElement(lower, "gapleft 32, growx, span 2");
+		smooth = new RadioButton<Integer>(screen).setValue(2);
+		smooth.setText("Smooth");
 		paintGroup.addButton(smooth);
-		toolOptions.addChild(smooth, "gapleft 32, growx, span 2");
+		toolOptions.addElement(smooth, "gapleft 32, growx, span 2");
 
-		toolOptions.addChild(heightBrushTexture = createBrushSelector(new Runnable() {
-			public void run() {
-				if (heightBrushTexture != null) {
-					recreateHeightBrush();
-				}
-			}
+		toolOptions.addElement(heightBrushTexture = createBrushSelector(evt -> {
+			if (!evt.getSource().isAdjusting())
+				recreateHeightBrush();
 		}), "growx, growy, span 2");
 
 		recreateHeightBrush();
-
+		paintGroup.onChange(evt -> {
+			switch (evt.getSource().getSelected().getValue()) {
+			case 0:
+				doSetMode(TerrainEditorMode.PAINT);
+				break;
+			case 1:
+				doSetMode(TerrainEditorMode.ERASE);
+				break;
+			case 2:
+				doSetMode(TerrainEditorMode.SMOOTH);
+				break;
+			}
+		});
 		return toolOptions;
+	}
+	
+	private void doSetMode(TerrainEditorMode mode) {
+		this.mode = mode;
+		recreateHeightBrush();
+		recreateCursor();
 	}
 
 	private TabPanelContent selectTab() {
 		selectTab = new ModeTab(screen, TerrainEditorMode.SELECT);
 		selectTab.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[shrink 0][fill]", "[][][][]push[]"));
 
-		Container a = new Container(screen);
+		StyledContainer a = new StyledContainer(screen);
 		a.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[][]", "[]"));
-		a.addChild(new Label("Tile environment:", screen));
-		tileEnvironment = new ComboBox<String>(screen) {
+		a.addElement(new Label("Tile environment:", screen));
+		tileEnvironment = new ComboBox<String>(screen);
+		tileEnvironment.addListItem("Default for terrain", "");
+		for (String key : EnvironmentManager.get(assetManager).getEnvironments()) {
+			tileEnvironment.addListItem(key, key);
+		}
+		a.addElement(tileEnvironment);
 
-			@Override
-			public void onChange(int selectedIndex, String value) {
-				if (adjusting) {
-					return;
+		a.addElement(new Label("Base:", screen));
+
+		baseline = new Spinner<Float>(screen, Orientation.HORIZONTAL, true);
+		baseline.setInterval(10);
+		baseline.setSpinnerModel(new FloatRangeSpinnerModel(-1000, 1000, 1,
+				prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_BASELINE, TerrainConfig.TERRAIN_EDITOR_BASELINE_DEFAULT)));
+		baseline.setFormatterString("%1.0f");
+		a.addElement(baseline);
+
+		PushButton setBaseToCurrent = new PushButton(screen) {
+			{
+				setStyleClass("fancy");
+			}
+		};
+		setBaseToCurrent.setText("Set");
+		setBaseToCurrent.setToolTipText("Set the baseline to the elevation at the cursor position");
+		a.addElement(setBaseToCurrent, "gapleft 32");
+
+		CheckBox restrictToBaseline = new CheckBox(screen);
+		restrictToBaseline.setChecked(prefs.getBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE,
+				TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE_DEFAULT));
+		restrictToBaseline.setText("Enable");
+		a.addElement(restrictToBaseline);
+
+		TerrainTemplateConfiguration cfg = getConfigurationForLocation();
+		tileEnvironment.setSelectedByValue(
+				cfg.getEnvironment() == null || StringUtils.isBlank(cfg.getEnvironment()) ? "" : cfg.getEnvironment());
+
+		// Actions
+
+		StyledContainer actions = new StyledContainer(screen);
+		actions.setLayoutManager(new MigLayout(screen, "wrap 2", "[shrink 0][]", "[]"));
+
+		actions.addElement(new Label("Elev:", screen));
+		newElevation = new Spinner<Float>(screen);
+		newElevation.setSpinnerModel(new FloatRangeSpinnerModel(0, cfg.getMaxHeight(), 1f, 0f));
+		newElevation.setInterval(50);
+		actions.addElement(newElevation);
+
+		final Spinner<Integer> radius = new Spinner<Integer>(screen);
+		radius.setSpinnerModel(new IntegerRangeSpinnerModel(1, 129, 1, 1));
+		final Spinner<Float> factor = new Spinner<Float>(screen);
+		factor.setSpinnerModel(new FloatRangeSpinnerModel(0, 1f, 0.1f, 0.5f));
+		actions.addElement(new Label("Fac:", screen));
+		actions.addElement(factor);
+		actions.addElement(new Label("Rad:", screen));
+		actions.addElement(radius);
+
+		final Spinner<Integer> amount = new Spinner<Integer>(screen);
+		amount.setSpinnerModel(new IntegerRangeSpinnerModel(1, 255, 1, 128));
+		PushButton flattenTile = new PushButton(screen, "Flatten");
+		flattenTile.setToolTipText(
+				"Flattens out the valleys. The flatten algorithm makes the valleys more prominent while keeping the hills mostly intact");
+		actions.addElement(new Label(screen));
+		actions.addElement(amount);
+
+		// Flatten
+		newTile = new PushButton(screen, "New");
+		newTile.setToolTipText("Create a new tile at the specified elevation and current camera location");
+		// Delete
+		deleteTile = new PushButton(screen, "Delete");
+		deleteTile.onMouseReleased(evt -> {
+			final DialogBox dialog = new DialogBox(screen, new Vector2f(15, 15), true) {
+				@Override
+				public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
+					hide();
 				}
-				TerrainTemplateConfiguration cfg = getConfigurationForLocation();
-				PageLocation page = cfg.getPage();
-				File cfgDir = TerrainEditorAppState.getDirectoryForTerrainTemplate(getApp().getAssets(), cfg);
-				File file = new File(cfgDir, String.format("%s_x%dy%d.nut", cfg.getBaseTemplateName(), page.x, page.y));
+
+				@Override
+				public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
+					deleteTile(playerTile);
+					hide();
+				}
+			};
+			dialog.setDestroyOnHide(true);
+			ElementStyle.warningColor(dialog.getDragBar());
+			dialog.setWindowTitle("Confirm Delete");
+			dialog.setButtonOkText("Delete");
+			dialog.setText(
+					String.format("Are you sure you wish to delete the tile at %d, %d?", playerTile.x, playerTile.y));
+			dialog.setModal(true);
+			screen.showElement(dialog, ScreenLayoutConstraints.center);
+		});
+		deleteTile.setToolTipText("Deletes tile at camera location");
+		// Erode
+		PushButton erode = new PushButton(screen, "Erode");
+		erode.setToolTipText("Applies the FIR filter to a given height map. This simulates water errosion.");
+
+		PushButton smoothTile = new PushButton(screen, "Smooth");
+
+		// Buttons panels
+		Container buttons = new Container(
+				new FlowLayout(Orientation.VERTICAL).setEqualSizeCells(true).setFill(true).setGap(4));
+		buttons.addElement(newTile);
+		buttons.addElement(deleteTile);
+		buttons.addElement(flattenTile);
+		buttons.addElement(erode);
+		buttons.addElement(smoothTile);
+
+		// Top
+		Container top = new Container(new BorderLayout());
+		top.addElement(buttons, Border.WEST);
+		top.addElement(actions, Border.CENTER);
+
+		selectTab.addElement(top, "growx, span 2");
+		selectTab.addElement(new Separator(screen, Orientation.HORIZONTAL), "growx, span 2");
+
+		StyledContainer c = new StyledContainer(screen);
+		c.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[][]", "[][][][]"));
+		c.addElement(new Label("Total:", screen));
+		c.addElement(totalMemory = new Label("", screen));
+		c.addElement(new Label("Free:", screen));
+		c.addElement(freeMemory = new Label("", screen));
+		c.addElement(new Label("Max:", screen));
+		c.addElement(maxMemory = new Label("", screen));
+		c.addElement(new Label("Used:", screen));
+		c.addElement(usedMemory = new Label("", screen));
+		c.addElement(new Label("Undos:", screen));
+		c.addElement(undos = new Label("", screen));
+
+		// Memory
+		PushButton gc = new PushButton(screen) {
+			{
+				setStyleClass("fancy");
+			}
+		};
+		gc.onMouseReleased(evt -> System.gc());
+		gc.setText("Force GC");
+		c.addElement(gc, "span 2, ax 50%");
+		selectTab.addElement(a, "growx, span 2");
+		setMemoryValues();
+		selectTab.addElement(c, "growx, span 2");
+
+		// Events
+
+		setBaseToCurrent.onMouseReleased(evt -> {
+			prefs.putDouble(TerrainConfig.TERRAIN_EDITOR_BASELINE, terrainHeight);
+		});
+		restrictToBaseline.onChange(evt -> {
+			if (!evt.getSource().isAdjusting()) {
+				prefs.putBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE, evt.getNewValue());
+			}
+		});
+		flattenTile.onMouseReleased(evt -> {
+			TerrainInstance instance = terrainLoader.get(playerTile);
+			if (instance == null || instance.getTerrainTemplate() == null) {
+				error("No such tile");
+				return;
+			}
+			undoManager.storeAndExecute(
+					new FlattenTile(instance, terrainLoader, amount.getSpinnerModel().getCurrentValue().byteValue()));
+		});
+		newTile.onMouseReleased(evt -> {
+			try {
+				newTile(playerTile, newElevation.getSelectedValue());
+			} catch (IOException ex) {
+				error("Failed to create new tile.", ex);
+				LOG.log(Level.SEVERE, "Failed to create new tile.", ex);
+			}
+		});
+		erode.onMouseReleased(evt -> {
+			TerrainInstance instance = terrainLoader.get(playerTile);
+			if (instance == null || instance.getTerrainTemplate() == null || instance.getHeightmap() == null) {
+				error("No such tile");
+				return;
+			}
+			undoManager.storeAndExecute(new ErodeTile(instance, terrainLoader));
+		});
+		smoothTile.onMouseReleased(evt -> {
+			TerrainInstance instance = terrainLoader.get(playerTile);
+			if (instance == null || instance.getTerrainTemplate() == null) {
+				error("No such tile");
+				return;
+			}
+			undoManager.storeAndExecute(new SmoothTile(instance, terrainLoader,
+					factor.getSpinnerModel().getCurrentValue(), radius.getSpinnerModel().getCurrentValue()));
+		});
+		baseline.onChange(evt -> {
+			if (!evt.getSource().isAdjusting()) {
+				prefs.putDouble(TerrainConfig.TERRAIN_EDITOR_BASELINE, evt.getNewValue().doubleValue());
+			}
+		});
+		tileEnvironment.onChange(evt -> {
+			if (!evt.getSource().isAdjusting()) {
+				TerrainTemplateConfiguration loccfg = getConfigurationForLocation();
+				PageLocation page = loccfg.getPage();
+				File cfgDir = TerrainEditorAppState.getDirectoryForTerrainTemplate(getApp().getAssets(), loccfg);
+				File file = new File(cfgDir,
+						String.format("%s_x%dy%d.nut", loccfg.getBaseTemplateName(), page.x, page.y));
+				String value = evt.getNewValue();
 				try {
 					if (value.equals("")) {
-						cfg.setEnvironment(null);
+						loccfg.setEnvironment(null);
 						file.delete();
-						info(String.format("Set terrain tile %d,%d to default environment for terrain.", page.x, page.y));
+						info(String.format("Set terrain tile %d,%d to default environment for terrain.", page.x,
+								page.y));
 						setEnvironment(null, EnvPriority.TILE);
 					} else {
-						cfg.setEnvironment(value);
+						loccfg.setEnvironment(value);
 						DOSWriter dw = new DOSWriter(new FileOutputStream(file));
 						try {
 							dw.println(String.format("TerrainTemplate.setEnvironment(\"%s\");", value));
 						} finally {
 							dw.close();
 						}
-						info(String.format("Set terrain tile %d,%d to environment '%s'.", page.x, page.y, key));
+						info(String.format("Set terrain tile %d,%d to environment '%s'.", page.x, page.y,
+								loccfg.getAssetName()));
 						setEnvironment(value, EnvPriority.TILE);
 					}
 				} catch (Exception e) {
 					LOG.log(Level.SEVERE, "Failed to set tile environment.", e);
 				}
 			}
-		};
-
-		tileEnvironment.addListItem("Default for terrain", "");
-		for (String key : EnvironmentManager.get(assetManager).getEnvironments()) {
-			tileEnvironment.addListItem(key, key);
-		}
-		a.addChild(tileEnvironment);
-
-		a.addChild(new Label("Base:", screen));
-
-		baseline = new Spinner<Float>(screen, Orientation.HORIZONTAL, true) {
-			@Override
-			public void onChange(Float value) {
-				if (!adjusting) {
-					prefs.putDouble(TerrainConfig.TERRAIN_EDITOR_BASELINE, value.doubleValue());
-				}
-			}
-		};
-		baseline.setInterval(10);
-		baseline.setSpinnerModel(new FloatRangeSpinnerModel(-1000, 1000, 1,
-				prefs.getFloat(TerrainConfig.TERRAIN_EDITOR_BASELINE, TerrainConfig.TERRAIN_EDITOR_BASELINE_DEFAULT)));
-		baseline.setFormatterString("%1.0f");
-		a.addChild(baseline);
-
-		FancyButton setBaseToCurrent = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				if (!adjusting) {
-					prefs.putDouble(TerrainConfig.TERRAIN_EDITOR_BASELINE, terrainHeight);
-				}
-			}
-		};
-		setBaseToCurrent.setText("Set");
-		setBaseToCurrent.setToolTipText("Set the baseline to the elevation at the cursor position");
-		a.addChild(setBaseToCurrent, "gapleft 32");
-
-		CheckBox restrictToBaseline = new CheckBox(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				if (!adjusting) {
-					prefs.putBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE, getIsChecked());
-				}
-			}
-		};
-		restrictToBaseline.setIsChecked(prefs.getBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE,
-				TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE_DEFAULT));
-		restrictToBaseline.setLabelText("Enable");
-		a.addChild(restrictToBaseline);
-
-		TerrainTemplateConfiguration cfg = getConfigurationForLocation();
-		tileEnvironment.setSelectedByValue(
-				cfg.getEnvironment() == null || StringUtils.isBlank(cfg.getEnvironment()) ? "" : cfg.getEnvironment(), false);
-
-		// Actions
-
-		Container actions = new Container(screen);
-		actions.setLayoutManager(new MigLayout(screen, "wrap 5", "[shrink 0,grow][shrink 0][][shrink 0][]", "[]"));
-
-		// Flatten
-		newElevation = new Spinner<Float>(screen);
-		newElevation.setSpinnerModel(new FloatRangeSpinnerModel(0, cfg.getMaxHeight(), 1f, 0f));
-		newElevation.setInterval(50);
-		newTile = new ButtonAdapter(screen, "New") {
-
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				try {
-					newTile(playerTile, newElevation.getSelectedValue());
-				} catch (IOException ex) {
-					error("Failed to create new tile.", ex);
-					LOG.log(Level.SEVERE, "Failed to create new tile.", ex);
-				}
-			}
-
-		};
-		newTile.setToolTipText("Create a new tile at the specified elevation and current camera location");
-		actions.addChild(newTile, "growx");
-		actions.addChild(new Label("Elev:", screen));
-		actions.addChild(newElevation, "span 3");
-
-		// Delete
-		deleteTile = new ButtonAdapter(screen, "Delete") {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				final FancyDialogBox dialog = new FancyDialogBox(screen, new Vector2f(15, 15), FancyWindow.Size.LARGE, true) {
-					@Override
-					public void onButtonCancelPressed(MouseButtonEvent evt, boolean toggled) {
-						hideWindow();
-					}
-
-					@Override
-					public void onButtonOkPressed(MouseButtonEvent evt, boolean toggled) {
-						deleteTile(playerTile);
-						hideWindow();
-					}
-				};
-				dialog.setDestroyOnHide(true);
-				dialog.getDragBar().setFontColor(screen.getStyle("Common").getColorRGBA("warningColor"));
-				dialog.setWindowTitle("Confirm Delete");
-				dialog.setButtonOkText("Delete");
-				dialog.setMsg(String.format("Are you sure you wish to delete the tile at %d, %d?", playerTile.x, playerTile.y));
-				dialog.setIsResizable(false);
-				dialog.setIsMovable(false);
-				dialog.sizeToContent();
-				UIUtil.center(screen, dialog);
-				screen.addElement(dialog, null, true);
-				dialog.showAsModal(true);
-			}
-		};
-		deleteTile.setToolTipText("Deletes tile at camera location");
-		actions.addChild(deleteTile, "growx,wrap");
-
-		// Smooth
-		final Spinner<Integer> radius = new Spinner<Integer>(screen);
-		radius.setSpinnerModel(new IntegerRangeSpinnerModel(1, 129, 1, 1));
-		final Spinner<Float> factor = new Spinner<Float>(screen);
-		factor.setSpinnerModel(new FloatRangeSpinnerModel(0, 1f, 0.1f, 0.5f));
-
-		ButtonAdapter smoothTile = new ButtonAdapter(screen, "Smooth") {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				TerrainInstance instance = terrainLoader.get(playerTile);
-				if (instance == null || instance.getTerrainTemplate() == null) {
-					error("No such tile");
-					return;
-				}
-				undoManager.storeAndExecute(new SmoothTile(instance, terrainLoader, factor.getSpinnerModel().getCurrentValue(),
-						radius.getSpinnerModel().getCurrentValue()));
-			}
-		};
-		actions.addChild(smoothTile, "growx");
-		actions.addChild(new Label("Fac:", screen));
-		actions.addChild(factor);
-		actions.addChild(new Label("Rad:", screen));
-		actions.addChild(radius);
-
-		// Flatten
-		final Spinner<Integer> amount = new Spinner<Integer>(screen);
-		amount.setSpinnerModel(new IntegerRangeSpinnerModel(1, 255, 1, 128));
-		ButtonAdapter flattenTile = new ButtonAdapter(screen, "Flatten") {
-
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				TerrainInstance instance = terrainLoader.get(playerTile);
-				if (instance == null || instance.getTerrainTemplate() == null) {
-					error("No such tile");
-					return;
-				}
-				undoManager.storeAndExecute(
-						new FlattenTile(instance, terrainLoader, amount.getSpinnerModel().getCurrentValue().byteValue()));
-			}
-
-		};
-		flattenTile.setToolTipText(
-				"Flattens out the valleys. The flatten algorithm makes the valleys more prominent while keeping the hills mostly intact");
-		actions.addChild(flattenTile, "growx");
-		actions.addChild(new Label(screen));
-		actions.addChild(amount, "span 3");
-
-		// Erode
-		ButtonAdapter erode = new ButtonAdapter(screen, "Erode") {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				TerrainInstance instance = terrainLoader.get(playerTile);
-				if (instance == null || instance.getTerrainTemplate() == null || instance.getHeightmap() == null) {
-					error("No such tile");
-					return;
-				}
-				undoManager.storeAndExecute(new ErodeTile(instance, terrainLoader));
-			}
-		};
-		erode.setToolTipText("Applies the FIR filter to a given height map. This simulates water errosion.");
-		actions.addChild(erode, "growx");
-
-		selectTab.addChild(actions, "growx, span 2");
-		selectTab.addChild(new XSeparator(screen, Orientation.HORIZONTAL), "growx, span 2");
-
-		Container c = new Container(screen);
-		c.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[][]", "[][][][]"));
-		c.addChild(new Label("Total:", screen));
-		c.addChild(totalMemory = new Label("", screen));
-		c.addChild(new Label("Free:", screen));
-		c.addChild(freeMemory = new Label("", screen));
-		c.addChild(new Label("Max:", screen));
-		c.addChild(maxMemory = new Label("", screen));
-		c.addChild(new Label("Used:", screen));
-		c.addChild(usedMemory = new Label("", screen));
-		c.addChild(new Label("Undos:", screen));
-		c.addChild(undos = new Label("", screen));
-
-		// Memory
-		FancyButton gc = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				System.gc();
-			}
-		};
-		gc.setText("Force GC");
-		c.addChild(gc, "span 2, ax 50%");
-		selectTab.addChild(a, "growx, span 2");
-		setMemoryValues();
-		selectTab.addChild(c, "growx, span 2");
+		});
 
 		return selectTab;
 	}
@@ -1875,7 +1853,8 @@ public class TerrainEditorAppState extends TerrainAppState
 
 		// Heightmap
 		int pageSize = terrainTemplate.getPageSize();
-		Image img = new Image(Image.Format.Luminance16, pageSize, pageSize, ByteBuffer.allocateDirect(pageSize * pageSize * 2));
+		Image img = new Image(Image.Format.Luminance16F, pageSize, pageSize,
+				ByteBuffer.allocateDirect(pageSize * pageSize * 2));
 		SaveableWideImageBasedHeightMap ibhm = new SaveableWideImageBasedHeightMap(img,
 				65535f / (float) terrainTemplate.getMaxHeight());
 		try {
@@ -1893,8 +1872,9 @@ public class TerrainEditorAppState extends TerrainAppState
 		img = new Image(Image.Format.ABGR8, 256, 256, ByteBuffer.allocateDirect(256 * 256 * 4));
 		ImagePainter p = new ImagePainter(img);
 		p.wipe(new ColorRGBA(0, 0, 0, 1));
-		FileOutputStream out = new FileOutputStream(Icelib.makeParent(app.getAssets().getExternalAssetFile(format("%s/%s",
-				terrainTemplate.getAssetFolder(), format(terrainTemplate.getTextureCoverageFormat(), tile.x, tile.y)))));
+		FileOutputStream out = new FileOutputStream(
+				Icelib.makeParent(app.getAssets().getExternalAssetFile(format("%s/%s", terrainTemplate.getAssetFolder(),
+						format(terrainTemplate.getTextureCoverageFormat(), tile.x, tile.y)))));
 		try {
 			PNGSaver.save(out, false, true, img);
 		} finally {
@@ -1920,8 +1900,10 @@ public class TerrainEditorAppState extends TerrainAppState
 		}
 
 		for (String s : new String[] { instance.getTerrainTemplate().getHeightmapImageFormat(),
-				instance.getTerrainTemplate().getTextureBaseFormat(), instance.getTerrainTemplate().getTextureCoverageFormat(),
-				instance.getTerrainTemplate().getTextureTextureFormat(), instance.getTerrainTemplate().getPerPageConfig() }) {
+				instance.getTerrainTemplate().getTextureBaseFormat(),
+				instance.getTerrainTemplate().getTextureCoverageFormat(),
+				instance.getTerrainTemplate().getTextureTextureFormat(),
+				instance.getTerrainTemplate().getPerPageConfig() }) {
 			removeFileIfExists(app.getAssets().getExternalAssetFile(
 					format("%s/%s", instance.getTerrainTemplate().getAssetFolder(), format(s, tile.x, tile.y))));
 		}
@@ -1945,42 +1927,38 @@ public class TerrainEditorAppState extends TerrainAppState
 		toolOptions.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[][fill, grow]", "[][][]push"));
 
 		// Brush Size
-		toolOptions.addChild(new Label("Brush Size:", screen));
-		flattenSize = new Spinner<Integer>(screen, Orientation.HORIZONTAL, false) {
-			@Override
-			public void onChange(Integer value) {
-				prefs.putInt(TerrainConfig.TERRAIN_EDITOR_FLATTEN_BRUSH_SIZE, value);
-			}
-		};
+		toolOptions.addElement(new Label("Brush Size:", screen));
+		flattenSize = new Spinner<Integer>(screen, Orientation.HORIZONTAL, false);
+		flattenSize.onChange(evt -> prefs.putInt(TerrainConfig.TERRAIN_EDITOR_FLATTEN_BRUSH_SIZE, evt.getNewValue()));
 		flattenSize.setInterval(10);
 		flattenSize.setSpinnerModel(flattenSizeModel);
-		toolOptions.addChild(flattenSize);
+		toolOptions.addElement(flattenSize);
 
 		// Brush strength
-		toolOptions.addChild(new Label("Elevation:", screen));
-		flattenElevation = new Spinner<Float>(screen, Orientation.HORIZONTAL, false) {
-			@Override
-			public void onChange(Float value) {
-				recreateFlattenBrush();
-				cursorSpatial.setLocalTranslation(cursor.x, flattenElevationModel.getCurrentValue(), cursor.y);
-			}
-		};
+		toolOptions.addElement(new Label("Elevation:", screen));
+		flattenElevation = new Spinner<Float>(screen, Orientation.HORIZONTAL, false);
+		flattenElevation.onChange(evt -> {
+			recreateFlattenBrush();
+			cursorSpatial.setLocalTranslation(cursor.x, flattenElevationModel.getCurrentValue(), cursor.y);
+		});
 		flattenElevation.setInterval(100f);
 		flattenElevation.setSpinnerModel(flattenElevationModel);
 		setFlattenElevation();
-		toolOptions.addChild(flattenElevation);
+		toolOptions.addElement(flattenElevation);
 
 		// Set now
-		setElevation = new FancyButton(screen) {
-			@Override
-			public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled) {
-				if (!adjusting && playerTile != null) {
-					paintAtCursor(0);
-				}
+		setElevation = new PushButton(screen) {
+			{
+				setStyleClass("fancy");
 			}
 		};
+		setElevation.onMouseReleased(evt -> {
+			if (playerTile != null) {
+				paintAtCursor(0);
+			}
+		});
 		setElevation.setText("Set");
-		toolOptions.addChild(setElevation, "span 2, ax 50%");
+		toolOptions.addElement(setElevation, "span 2, ax 50%");
 
 		recreateFlattenBrush();
 
@@ -1999,58 +1977,53 @@ public class TerrainEditorAppState extends TerrainAppState
 		TabPanelContent contentArea = new TabPanelContent(screen);
 		contentArea.setLayoutManager(new MigLayout(screen, "wrap 2, fill", "[][fill, grow]", "[][]push"));
 
-		liquidPlane = new ComboBox<String>(screen) {
-			@Override
-			public void onChange(int selectedIndex, String value) {
-				if (!adjusting && playerTile != null) {
-					TerrainInstance page = getPage(playerTile);
-					TerrainTemplateConfiguration configuration = page.getTerrainTemplate();
-					final boolean selectedNone = value.equals("None");
-					elevation.setIsEnabled(!selectedNone);
-					if (selectedNone && configuration.getLiquidPlaneConfiguration() != null) {
-						undoManager.storeAndExecute(new SetLiquidPlane(page, null, terrainLoader));
-					} else if (!selectedNone) {
-						if (configuration.getLiquidPlaneConfiguration() == null) {
-							Camera cam = app.getCamera();
-							float el = cam.getLocation().y - 10;
-							undoManager.storeAndExecute(new SetLiquidPlane(page,
-									new TerrainTemplateConfiguration.LiquidPlaneConfiguration(el, value), terrainLoader));
-							elevation.setSelectedValue(el);
-						} else {
-							// Hopefully the slider will be somewhere sensible
-							// :)
-							undoManager.storeAndExecute(new SetLiquidPlaneMaterial(page, value, terrainLoader));
-						}
+		liquidPlane = new ComboBox<LiquidPlane>(screen, LiquidPlane.values());
+		liquidPlane.onChange(evt -> {
+			if (!evt.getSource().isAdjusting() && playerTile != null) {
+				TerrainInstance page = getPage(playerTile);
+				TerrainTemplateConfiguration configuration = page.getTerrainTemplate();
+				final boolean selectedNone = evt.getNewValue().equals("None");
+				elevation.setEnabled(!selectedNone);
+				if (selectedNone && configuration.getLiquidPlaneConfiguration() != null) {
+					undoManager.storeAndExecute(new SetLiquidPlane(page, null, terrainLoader));
+				} else if (!selectedNone) {
+					if (configuration.getLiquidPlaneConfiguration() == null) {
+						Camera cam = app.getCamera();
+						float el = cam.getLocation().y - 10;
+						undoManager.storeAndExecute(new SetLiquidPlane(page,
+								new TerrainTemplateConfiguration.LiquidPlaneConfiguration(el, evt.getNewValue()),
+								terrainLoader));
+						elevation.runAdjusting(() -> elevation.setSelectedValue(el));
+					} else {
+						// Hopefully the slider will be somewhere sensible
+						// :)
+						undoManager.storeAndExecute(new SetLiquidPlaneMaterial(page, evt.getNewValue(), terrainLoader));
 					}
 				}
 			}
-		};
-		for (String s : Arrays.asList("None", "Water", "Lava", "Tropical", "Shard", "SwampWater", "Tar")) {
-			liquidPlane.addListItem(s, s);
-		}
-		contentArea.addChild(new Label("Plane:", screen));
-		contentArea.addChild(liquidPlane);
-		contentArea.addChild(new Label("Elevation:", screen));
+		});
+		contentArea.addElement(new Label("Plane:", screen));
+		contentArea.addElement(liquidPlane);
+		contentArea.addElement(new Label("Elevation:", screen));
 
-		elevation = new Spinner<Float>(screen, Orientation.HORIZONTAL, true) {
-			@Override
-			public void onChange(Float value) {
-				if (!adjusting && playerTile != null) {
-					TerrainInstance page = getPage(playerTile);
-					if (page != null) {
-						final TerrainTemplateConfiguration.LiquidPlaneConfiguration liquidPlaneConfiguration = page
-								.getTerrainTemplate().getLiquidPlaneConfiguration();
-						if (liquidPlaneConfiguration != null) {
-							undoManager.storeAndExecute(new SetLiquidElevation(page, value, terrainLoader));
-						}
-					}
-				}
-			}
-		};
+		elevation = new Spinner<Float>(screen, Orientation.HORIZONTAL, true);
 		elevation.setInterval(10);
 		elevation.setSpinnerModel(new FloatRangeSpinnerModel(-1000, 1000, 1, 0));
 		elevation.setFormatterString("%1.0f");
-		contentArea.addChild(elevation);
+		elevation.onChange(evt -> {
+
+			if (!evt.getSource().isAdjusting() && playerTile != null) {
+				TerrainInstance page = getPage(playerTile);
+				if (page != null) {
+					final TerrainTemplateConfiguration.LiquidPlaneConfiguration liquidPlaneConfiguration = page
+							.getTerrainTemplate().getLiquidPlaneConfiguration();
+					if (liquidPlaneConfiguration != null) {
+						undoManager.storeAndExecute(new SetLiquidElevation(page, evt.getNewValue(), terrainLoader));
+					}
+				}
+			}
+		});
+		contentArea.addElement(elevation);
 
 		// TODO bug -
 		// Form f = new Form(screen);
@@ -2068,44 +2041,50 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	private void recreateHeightBrush() {
-		final Table.TableRow selectedRow = heightBrushTexture.getSelectedRow();
+		final TableRow selectedRow = heightBrushTexture.getSelectedRow();
 		if (selectedRow != null) {
-
+			LOG.info(String.format("Recreating brush for mode %s", mode));
 			if (mode.equals(TerrainEditorMode.SMOOTH)) {
-				heightBrush = new TerrainSmoothBrush(assetManager, undoManager, terrainLoader, sizeModel.getCurrentValue(),
-						selectedRow.getValue().toString(), amountModel.getCurrentValue(),
+				heightBrush = new TerrainSmoothBrush(assetManager, undoManager, terrainLoader,
+						sizeModel.getCurrentValue(), selectedRow.getValue().toString(), amountModel.getCurrentValue(),
 						prefs.getBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE,
 								TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE_DEFAULT)
-										? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue() : Float.MIN_VALUE);
+										? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue()
+										: Float.MIN_VALUE);
 			} else {
 
-				heightBrush = new TerrainHeightBrush(assetManager, undoManager, terrainLoader, sizeModel.getCurrentValue(),
-						selectedRow.getValue().toString(),
-						mode.equals(TerrainEditorMode.ERASE) ? -amountModel.getCurrentValue() : amountModel.getCurrentValue(),
+				heightBrush = new TerrainHeightBrush(assetManager, undoManager, terrainLoader,
+						sizeModel.getCurrentValue(), selectedRow.getValue().toString(),
+						mode.equals(TerrainEditorMode.ERASE) ? -amountModel.getCurrentValue()
+								: amountModel.getCurrentValue(),
 						prefs.getBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE,
 								TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE_DEFAULT)
-										? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue() : Float.MIN_VALUE);
+										? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue()
+										: Float.MIN_VALUE);
 			}
 		}
 	}
 
 	private void recreateFlattenBrush() {
-		flattenBrush = new TerrainFlattenBrush(assetManager, undoManager, terrainLoader, flattenSizeModel.getCurrentValue(),
-				flattenElevationModel.getCurrentValue(), "Textures/Brushes/Circle32.png", amountModel.getCurrentValue(),
+		flattenBrush = new TerrainFlattenBrush(assetManager, undoManager, terrainLoader,
+				flattenSizeModel.getCurrentValue(), flattenElevationModel.getCurrentValue(),
+				"Textures/Brushes/Circle32.png", amountModel.getCurrentValue(),
 				prefs.getBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE,
 						TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE_DEFAULT)
-								? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue() : Float.MIN_VALUE);
+								? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue()
+								: Float.MIN_VALUE);
 	}
 
 	private void recreateSplatBrush() {
-		final Table.TableRow selectedRow = splatBrushTexture.getSelectedRow();
+		final TableRow selectedRow = splatBrushTexture.getSelectedRow();
 		if (selectedRow != null) {
-			splatBrush = new TerrainSplatBrush(assetManager, undoManager, terrainLoader, splatSizeModel.getCurrentValue(),
-					selectedRow.getValue().toString(), TerrainSplatBrush.Channel.values()[selectedTexture],
-					splatRateModel.getCurrentValue(),
+			splatBrush = new TerrainSplatBrush(assetManager, undoManager, terrainLoader,
+					splatSizeModel.getCurrentValue(), selectedRow.getValue().toString(),
+					TerrainSplatBrush.Channel.values()[selectedTexture], splatRateModel.getCurrentValue(),
 					prefs.getBoolean(TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE,
 							TerrainConfig.TERRAIN_EDITOR_RESTRICT_BASELINE_DEFAULT)
-									? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue() : Float.MIN_VALUE);
+									? ((Number) baseline.getSpinnerModel().getCurrentValue()).floatValue()
+									: Float.MIN_VALUE);
 		}
 	}
 
@@ -2122,13 +2101,13 @@ public class TerrainEditorAppState extends TerrainAppState
 			TerrainInstance page = getPage(playerTile);
 			final TerrainTemplateConfiguration.LiquidPlaneConfiguration config = page == null ? null
 					: page.getTerrainTemplate().getLiquidPlaneConfiguration();
-			deleteTile.setIsEnabled(playerTile.isValid() && page != null && page.isHeightmapAvailable());
-			newTile.setIsEnabled(playerTile.isValid() && ((page == null || !page.isHeightmapAvailable())));
-			elevation.setIsEnabled(playerTile.isValid() && config != null && config.getMaterial() != null);
+			deleteTile.setEnabled(playerTile.isValid() && page != null && page.isHeightmapAvailable());
+			newTile.setEnabled(playerTile.isValid() && ((page == null || !page.isHeightmapAvailable())));
+			elevation.setEnabled(playerTile.isValid() && config != null && config.getMaterial() != null);
 		} else {
-			deleteTile.setIsEnabled(false);
-			newTile.setIsEnabled(false);
-			elevation.setIsEnabled(false);
+			deleteTile.setEnabled(false);
+			newTile.setEnabled(false);
+			elevation.setEnabled(false);
 		}
 
 	}
@@ -2147,18 +2126,14 @@ public class TerrainEditorAppState extends TerrainAppState
 
 		private final TerrainEditorMode mode;
 
-		ModeTab(ElementManager screen, TerrainEditorMode mode) {
+		ModeTab(BaseScreen screen, TerrainEditorMode mode) {
 			super(screen);
 			this.mode = mode;
-		}
-
-		@Override
-		public void childShow() {
-			super.childShow();
-			TerrainEditorAppState.this.mode = mode;
+			// TerrainEditorAppState.this.mode = mode;
 			destroyCursor();
 			recreateCursor();
 		}
+
 	}
 
 	@SuppressWarnings("serial")
@@ -2194,7 +2169,7 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	@SuppressWarnings("serial")
-	abstract class AbstractTileOp implements UndoManager.UndoableCommand {
+	abstract class AbstractTileOp implements UndoableCommand {
 
 		private final TerrainInstance instance;
 		private final TerrainLoader loader;
@@ -2248,7 +2223,7 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	@SuppressWarnings("serial")
-	class SetLiquidPlane implements UndoManager.UndoableCommand {
+	class SetLiquidPlane implements UndoableCommand {
 
 		private final TerrainTemplateConfiguration.LiquidPlaneConfiguration liquid;
 		private final TerrainInstance instance;
@@ -2282,15 +2257,15 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	@SuppressWarnings("serial")
-	class SetLiquidPlaneMaterial implements UndoManager.UndoableCommand {
+	class SetLiquidPlaneMaterial implements UndoableCommand {
 
-		private final String newMaterial;
+		private final LiquidPlane newMaterial;
 		private final TerrainInstance instance;
 		private final TerrainLoader loader;
-		private String current;
+		private LiquidPlane current;
 		private boolean wasNeedSave;
 
-		SetLiquidPlaneMaterial(TerrainInstance instance, String newMaterial, TerrainLoader loader) {
+		SetLiquidPlaneMaterial(TerrainInstance instance, LiquidPlane newMaterial, TerrainLoader loader) {
 			this.newMaterial = newMaterial;
 			this.instance = instance;
 			this.loader = loader;
@@ -2314,7 +2289,7 @@ public class TerrainEditorAppState extends TerrainAppState
 	}
 
 	@SuppressWarnings("serial")
-	class SetLiquidElevation implements UndoManager.UndoableCommand {
+	class SetLiquidElevation implements UndoableCommand {
 
 		private final float newElevation;
 		private final TerrainInstance instance;

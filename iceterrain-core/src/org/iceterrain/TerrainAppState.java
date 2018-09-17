@@ -59,15 +59,15 @@ public class TerrainAppState extends IcemoonAppState<IcemoonAppState<?>> impleme
 	}
 
 	private void unloadOutOfRadiusTerrain(PageLocation location) {
-		final int load = Math.min(terrainLoader.getDefaultTerrainTemplate().getLivePageMargin(), SceneConstants.GLOBAL_MAX_LOAD);
-//		int unloadRadius = Math.max(SceneConstants.UNLOAD_PAGE_RADIUS, load + 1);
+		final int load = Math.min(terrainLoader.getDefaultTerrainTemplate().getLivePageMargin(),
+				SceneConstants.GLOBAL_MAX_LOAD);
+		// int unloadRadius = Math.max(SceneConstants.UNLOAD_PAGE_RADIUS, load +
+		// 1);
 		int unloadRadius = load + 1;
-		System.out.println("UNLOADING RAD: "+ unloadRadius + " LOAD: " + load);
 		for (TerrainInstance el : terrainLoader.getLoaded()) {
 			PageLocation pl = el.getPage();
-			if (!location.equals(pl)
-					&& (pl.x >= location.x + unloadRadius || pl.x <= location.x - unloadRadius || pl.y > location.y + unloadRadius || pl.y <= location.y
-							- unloadRadius)) {
+			if (!location.equals(pl) && (pl.x >= location.x + unloadRadius || pl.x <= location.x - unloadRadius
+					|| pl.y > location.y + unloadRadius || pl.y <= location.y - unloadRadius)) {
 				terrainLoader.unload(el.getPage());
 			}
 		}
@@ -231,8 +231,10 @@ public class TerrainAppState extends IcemoonAppState<IcemoonAppState<?>> impleme
 	protected void handlePrefUpdateSceneThread(PreferenceChangeEvent evt) {
 		if (evt.getKey().equals(TerrainConfig.TERRAIN_LIT) || evt.getKey().equals(TerrainConfig.TERRAIN_LOD_CONTROL)
 				|| evt.getKey().equals(TerrainConfig.TERRAIN_SMOOTH_SCALING)
-				|| evt.getKey().equals(TerrainConfig.TERRAIN_WIREFRAME) || evt.getKey().equals(TerrainConfig.TERRAIN_HIGH_DETAIL)
-				|| evt.getKey().equals(TerrainConfig.TERRAIN_TRI_PLANAR) || evt.getKey().equals(TerrainConfig.TERRAIN_PRETTY_WATER)) {
+				|| evt.getKey().equals(TerrainConfig.TERRAIN_WIREFRAME)
+				|| evt.getKey().equals(TerrainConfig.TERRAIN_HIGH_DETAIL)
+				|| evt.getKey().equals(TerrainConfig.TERRAIN_TRI_PLANAR)
+				|| evt.getKey().equals(TerrainConfig.TERRAIN_PRETTY_WATER)) {
 			for (TerrainInstance i : terrainLoader.getLoaded()) {
 				try {
 					terrainLoader.reconfigureTile(i);
@@ -271,7 +273,8 @@ public class TerrainAppState extends IcemoonAppState<IcemoonAppState<?>> impleme
 	}
 
 	public Vector3f placeOnTerrain(Vector3f location) {
-		return new Vector3f(location.x, terrainLoader.getHeightAtWorldPosition(new Vector2f(location.x, location.x)), location.z);
+		return new Vector3f(location.x, terrainLoader.getHeightAtWorldPosition(new Vector2f(location.x, location.x)),
+				location.z);
 	}
 
 	public void playerViewLocationChanged(Vector3f viewLocation) {
@@ -279,12 +282,17 @@ public class TerrainAppState extends IcemoonAppState<IcemoonAppState<?>> impleme
 	}
 
 	public void playerTileChanged(PageLocation location) {
-		LOG.info(String.format("Changed tile to %s, queueing some terrain", location));
 		this.playerTile = location;
-		queueTerrainPagesLoad();
-		TerrainTemplateConfiguration cfg = getConfigurationForLocation();
-		if (cfg != null && cfg.getPage() != null) {
-			setEnvironment(cfg.getEnvironment(), EnvPriority.TILE);
+		if (isInitialized()) {
+			LOG.info(String.format("Changed tile to %s, queueing some terrain", location));
+			queueTerrainPagesLoad();
+			TerrainTemplateConfiguration cfg = getConfigurationForLocation();
+			if (cfg != null && cfg.getPage() != null) {
+				setEnvironment(cfg.getEnvironment(), EnvPriority.TILE);
+			}
+		} else {
+			LOG.info(String.format(
+					"Changed tile to %s, but not ready yet. Terrain will be queued when appstate is ready.", location));
 		}
 	}
 

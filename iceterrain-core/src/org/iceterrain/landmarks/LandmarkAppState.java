@@ -1,4 +1,4 @@
-package org.icesterrain.landmarks;
+package org.iceterrain.landmarks;
 
 import java.io.IOException;
 import java.io.InputStream;

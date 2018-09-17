@@ -1,4 +1,4 @@
-package org.icesterrain.landmarks;
+package org.iceterrain.landmarks;
 
 import java.util.List;
 

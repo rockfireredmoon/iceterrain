@@ -9,13 +9,12 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.icelib.AppInfo;
 import org.icelib.PageLocation;
-import org.icescene.Alarm;
 import org.icescene.HUDMessageAppState;
 import org.icescene.IcesceneApp;
-import org.icescene.SceneConfig;
 import org.icescene.SceneConstants;
 import org.icescene.assets.Assets;
 import org.icescene.audio.AudioAppState;
+import org.icescene.camera.CameraSpeedAppState;
 import org.icescene.configuration.TerrainTemplateConfiguration;
 import org.icescene.console.ConsoleAppState;
 import org.icescene.debug.LoadScreenAppState;
@@ -26,17 +25,17 @@ import org.icescene.io.ModifierKeysAppState;
 import org.icescene.io.MouseManager;
 import org.icescene.options.OptionsAppState;
 import org.icescene.props.EntityFactory;
-import org.icescene.ui.WindowManagerAppState;
 import org.iceskies.environment.EditableEnvironmentSwitcherAppState;
-import org.icesterrain.landmarks.LandmarkAppState;
-import org.icesterrain.landmarks.LandmarkEditorAppState;
 import org.iceterrain.TerrainAppState;
 import org.iceterrain.TerrainConfig;
 import org.iceterrain.TerrainConstants;
 import org.iceterrain.TerrainEditorAppState;
 import org.iceterrain.TerrainInstance;
 import org.iceterrain.TerrainLoader;
+import org.iceterrain.landmarks.LandmarkAppState;
+import org.iceterrain.landmarks.LandmarkEditorAppState;
 import org.iceui.IceUI;
+import org.iceui.actions.ActionAppState;
 import org.lwjgl.opengl.Display;
 
 import com.jme3.bullet.BulletAppState;
@@ -46,12 +45,14 @@ import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
 
 import icemoon.iceloader.ServerAssetManager;
+import icetone.core.utils.Alarm;
+import icetone.extras.appstates.FrameManagerAppState;
 
 public class Iceterrain extends IcesceneApp implements ActionListener {
 
 	static {
-		System.setProperty("iceloader.assetCache", System.getProperty("user.home") + File.separator + ".cache" + File.separator
-				+ "iceterrain" + File.separator + "assets");
+		System.setProperty("iceloader.assetCache", System.getProperty("user.home") + File.separator + ".cache"
+				+ File.separator + "iceterrain" + File.separator + "assets");
 	}
 
 	private final static String MAPPING_OPTIONS = "Options";
@@ -75,8 +76,7 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 			throw new Exception("No URL supplied.");
 		}
 		Iceterrain app = new Iceterrain(cmdLine);
-		startApp(app, cmdLine, AppInfo.getName() + " - " + AppInfo.getVersion(),
-				TerrainConstants.APPSETTINGS_NAME);
+		startApp(app, cmdLine, AppInfo.getName() + " - " + AppInfo.getVersion(), TerrainConstants.APPSETTINGS_NAME);
 	}
 
 	private TerrainLoader terrainLoader;
@@ -113,7 +113,8 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 
 		EntityFactory propFactory = new EntityFactory(this, rootNode);
 
-		/*
+		/**
+		 * <pre>
 		 * The scene heirarchy is roughly :-
 		 * 
 		 * MainCamera      MapCamera
@@ -128,11 +129,8 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 		 *     \_______ WorldNode
 		 *                  |\________ClutterNode
 		 *                  \_________CreaturesNode
+		 * </pre>
 		 */
-
-		flyCam.setMoveSpeed(prefs.getFloat(SceneConfig.BUILD_MOVE_SPEED, SceneConfig.BUILD_MOVE_SPEED_DEFAULT));
-		flyCam.setRotationSpeed(prefs.getFloat(SceneConfig.BUILD_ROTATE_SPEED, SceneConfig.BUILD_ROTATE_SPEED_DEFAULT));
-		flyCam.setZoomSpeed(prefs.getFloat(SceneConfig.BUILD_ZOOM_SPEED, SceneConfig.BUILD_ZOOM_SPEED_DEFAULT));
 		flyCam.setDragToRotate(true);
 		flyCam.setEnabled(true);
 		setPauseOnLostFocus(false);
@@ -144,8 +142,10 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 		Node worldNode = new Node("World");
 		gameNode.attachChild(worldNode);
 		rootNode.attachChild(gameNode);
-		
-		
+
+		// MenuBar
+		stateManager.attach(new ActionAppState(screen));
+
 		// Load screen
 		LoadScreenAppState load = new LoadScreenAppState(prefs);
 		load.setAutoShowOnDownloads(true);
@@ -158,7 +158,7 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 		screen.setUIAudioVolume(audioAppState.getActualUIVolume());
 
 		// Some windows need management
-		stateManager.attach(new WindowManagerAppState(prefs));
+		stateManager.attach(new FrameManagerAppState(screen));
 
 		// Need physics for terrain?
 		stateManager.attach(new BulletAppState());
@@ -166,11 +166,15 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 		// For error messages and stuff
 		stateManager.attach(new HUDMessageAppState());
 
-		// Mouse manager requires modifier keys to be monitored
+		// Mouse manager and camera speed appstate requires modifier keys to be
+		// monitored
 		stateManager.attach(new ModifierKeysAppState());
 
+		// Camera speed (modifiers shift = x10 and ctrl = x100)
+		stateManager.attach(new CameraSpeedAppState(flyCam, prefs));
+
 		// Mouse manager for dealing with clicking, dragging etc.
-		final MouseManager mouseManager = new MouseManager(rootNode, getAlarm());
+		final MouseManager mouseManager = new MouseManager(rootNode);
 		stateManager.attach(mouseManager);
 
 		// Light
@@ -187,7 +191,8 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 
 				if (templateConfiguration != null) {
 					LOG.info(String.format("Warped to new terrain, setting location %s @ %6.3f,%6.3f,%6.3f",
-							templateConfiguration.getBaseTemplateName(), initialLocation.x, initialLocation.y, initialLocation.z));
+							templateConfiguration.getBaseTemplateName(), initialLocation.x, initialLocation.y,
+							initialLocation.z));
 
 					lastLocation = initialLocation;
 					if ((!terrainLoader.isReadOnly() && !TerrainEditorAppState.isEditing(stateManager))
@@ -201,12 +206,8 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 					if (initialRotation != null) {
 						cam.setRotation(initialRotation);
 					}
-					if(tas.isInitialized()) {
-						tas.playerViewLocationChanged(lastLocation);
-						tas.playerTileChanged(getViewTile());
-					}
-
-				} else {
+					tas.playerViewLocationChanged(lastLocation);
+					tas.playerTileChanged(getViewTile());
 
 				}
 			}
@@ -222,12 +223,13 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 		});
 
 		// Skies
-		EditableEnvironmentSwitcherAppState state = new EditableEnvironmentSwitcherAppState(null, prefs, null, el, gameNode,
-				weatherNode);
+		EditableEnvironmentSwitcherAppState state = new EditableEnvironmentSwitcherAppState(null, prefs, null, el,
+				gameNode, weatherNode);
 		state.setPhase(EnvironmentPhase.DAY);
 		stateManager.attach(state);
 
-		TerrainAppState tas = new TerrainAppState(terrainLoader, prefs, el, mappableNode, propFactory, worldNode, mouseManager);
+		TerrainAppState tas = new TerrainAppState(terrainLoader, prefs, el, mappableNode, propFactory, worldNode,
+				mouseManager);
 		tas.playerTileChanged(new PageLocation(1, 1));
 
 		stateManager.attach(tas);
@@ -241,6 +243,8 @@ public class Iceterrain extends IcesceneApp implements ActionListener {
 		gameNode.attachChild(weatherNode);
 
 		// A menu
+		// stateManager.attach(new MenuAppState(terrainLoader, prefs, el,
+		// gameNode, weatherNode));
 		stateManager.attach(new MenuAppState(terrainLoader, prefs, el, gameNode, weatherNode));
 
 	}

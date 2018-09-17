@@ -13,6 +13,7 @@
 	</build>
 	<packaging>pom</packaging>
 	<modules>
+		<module>iceterrain-core</module>
 		<module>iceterrain-app</module>
 		<module>iceterrain-pkg-getdown</module>
 	</modules>

@@ -6,6 +6,7 @@ import java.util.logging.Logger;
 import org.icelib.PageLocation;
 import org.icelib.Point3D;
 import org.icescene.configuration.TerrainTemplateConfiguration;
+import org.icescene.configuration.TerrainTemplateConfiguration.LiquidPlane;
 import org.icescene.scene.AbstractSceneQueueLoadable;
 import org.icescene.terrain.SaveableHeightMap;
 
@@ -40,7 +41,7 @@ public class TerrainInstance extends AbstractSceneQueueLoadable<PageLocation> {
 	private String coverageTextureMaterialKey;
 	private boolean highDetail;
 	private boolean needsSave;
-	private String waterPlaneName;
+	private LiquidPlane waterPlaneName;
 	private boolean needsEdgeFix;
 
 	public TerrainInstance(PageLocation page, TerrainTemplateConfiguration terrainTemplate) {
@@ -208,11 +209,11 @@ public class TerrainInstance extends AbstractSceneQueueLoadable<PageLocation> {
 		this.quad = quad;
 	}
 
-	public void setWaterPlaneName(String waterPlaneName) {
+	public void setWaterPlaneName(LiquidPlane waterPlaneName) {
 		this.waterPlaneName = waterPlaneName;
 	}
 
-	public String getWaterPlaneName() {
+	public LiquidPlane getWaterPlaneName() {
 		return waterPlaneName;
 	}
 

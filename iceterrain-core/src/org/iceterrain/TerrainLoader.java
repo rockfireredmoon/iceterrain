@@ -10,6 +10,7 @@ import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.apache.commons.lang3.StringUtils;
 import org.icelib.AbstractConfig;
 import org.icelib.ClientException;
 import org.icelib.PageLocation;
@@ -20,11 +21,11 @@ import org.icescene.assets.ExtendedMaterialKey;
 import org.icescene.assets.ExtendedMaterialListKey;
 import org.icescene.assets.ExtendedMaterialListKey.Lighting;
 import org.icescene.configuration.TerrainTemplateConfiguration;
+import org.icescene.configuration.TerrainTemplateConfiguration.LiquidPlane;
 import org.icescene.environment.EnvironmentLight;
 import org.icescene.environment.PostProcessAppState;
 import org.icescene.materials.water.WaterFilterCapable;
 import org.icescene.scene.AbstractSceneQueue;
-import org.icescene.terrain.SaveableImageBasedHeightMap;
 import org.icescene.terrain.SaveableWideImageBasedHeightMap;
 
 import com.jme3.asset.AssetNotFoundException;
@@ -46,12 +47,16 @@ import com.jme3.terrain.geomipmap.TerrainLodControl;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import com.jme3.terrain.heightmap.AbstractHeightMap;
 import com.jme3.texture.Image;
-import com.jme3.texture.Texture;
 import com.jme3.texture.Image.Format;
+import com.jme3.texture.Texture;
 import com.jme3.water.WaterFilter;
 
 public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInstance> implements NeighbourFinder {
 
+	private static final String LIT_TERRAIN_MATDEF = "MatDefs/Terrain/TerrainLighting.j3md";
+//	private static final String LIT_TERRAIN_MATDEF = "MatDefs/Terrain/TerrainLighting2.j3md";
+//	private static final String LIT_TERRAIN_MATDEF = "Common/MatDefs/Terrain/TerrainLighting.j3md";
+	
 	private static final Logger LOG = Logger.getLogger(TerrainLoader.class.getName());
 	private TerrainTemplateConfiguration defaultTerrainTemplate;
 	private List<Listener> listeners = new ArrayList<Listener>();
@@ -69,8 +74,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		globalTerrainTemplate.load();
 	}
 
-	private WaterFilter createWaterFilter(WaterFilterCapable waterConfig, final TerrainTemplateConfiguration terrainTemplate,
-			float wuX, float wuY) {
+	private WaterFilter createWaterFilter(WaterFilterCapable waterConfig,
+			final TerrainTemplateConfiguration terrainTemplate, float wuX, float wuY) {
 		final WaterFilter water = new WaterFilter(gameNode,
 				light.getSunDirection().mult(SceneConstants.DIRECTIONAL_LIGHT_SOURCE_DISTANCE));
 		final ColorRGBA sunColor = waterConfig.getSunColor();
@@ -221,8 +226,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		return false;
 	}
 
-	public boolean setDefaultTerrainTemplate(TerrainTemplateConfiguration defaultTerrainTemplate, Vector3f initalLocation,
-			Quaternion initialRotation) {
+	public boolean setDefaultTerrainTemplate(TerrainTemplateConfiguration defaultTerrainTemplate,
+			Vector3f initalLocation, Quaternion initialRotation) {
 
 		if (!Objects.equals(this.defaultTerrainTemplate, defaultTerrainTemplate)) {
 			// First pause loader to stop any more tiles getting loaded
@@ -302,8 +307,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 				Vector2f pos = new Vector2f((thisTemplate.getPageWorldX() * (thisInstance.getPage().x + 1)) - 1, y);
 				Vector2f cen = thisInstance.worldToRelative(pos);
 				float hh = thisQuad.getHeightmapHeight(cen);
-				Vector2f rpos = new Vector2f(
-						rightQuad.getInstance().getPage().x * rightQuad.getInstance().getTerrainTemplate().getPageWorldX(), y);
+				Vector2f rpos = new Vector2f(rightQuad.getInstance().getPage().x
+						* rightQuad.getInstance().getTerrainTemplate().getPageWorldX(), y);
 				rpos = rightInstance.worldToRelative(rpos);
 				rightQuad.setHeight(rpos, hh);
 			}
@@ -348,7 +353,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 				Vector2f pos = new Vector2f(x, thisTemplate.getPageWorldZ() * thisInstance.getPage().y);
 				Vector2f cen = thisInstance.worldToRelative(pos);
 				float hh = thisQuad.getHeightmapHeight(cen);
-				Vector2f rpos = new Vector2f(x, (bottomTemplate.getPageWorldZ() * (bottomInstance.getPage().y + 1)) - 1);
+				Vector2f rpos = new Vector2f(x,
+						(bottomTemplate.getPageWorldZ() * (bottomInstance.getPage().y + 1)) - 1);
 				rpos = bottomInstance.worldToRelative(rpos);
 				bottomQuad.setHeight(rpos, hh);
 			}
@@ -435,7 +441,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 				Vector2f pos = new Vector2f((thisTemplate.getPageWorldX() * (thisInstance.getPage().x + 1)) - 1, y);
 				Vector2f cen = thisInstance.worldToRelative(pos);
 				float hh = thisQuad.getHeightmapHeight(cen);
-				Vector2f rpos = new Vector2f(rightInstance.getPage().x * rightInstance.getTerrainTemplate().getPageWorldX(), y);
+				Vector2f rpos = new Vector2f(
+						rightInstance.getPage().x * rightInstance.getTerrainTemplate().getPageWorldX(), y);
 				rpos = rightInstance.worldToRelative(rpos);
 				rightQuad.setHeight(rpos, hh);
 			}
@@ -480,7 +487,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 				Vector2f pos = new Vector2f(x, thisTemplate.getPageWorldZ() * thisInstance.getPage().y);
 				Vector2f cen = thisInstance.worldToRelative(pos);
 				float hh = thisQuad.getHeightmapHeight(cen);
-				Vector2f rpos = new Vector2f(x, (bottomTemplate.getPageWorldZ() * (bottomInstance.getPage().y + 1)) - 1);
+				Vector2f rpos = new Vector2f(x,
+						(bottomTemplate.getPageWorldZ() * (bottomInstance.getPage().y + 1)) - 1);
 				rpos = bottomInstance.worldToRelative(rpos);
 				bottomQuad.setHeight(rpos, hh);
 			}
@@ -492,7 +500,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		TerrainTemplateConfiguration terrainTemplate = defaultTerrainTemplate;
 
 		if (defaultTerrainTemplate.getPerPageConfig() != null) {
-			String name = defaultTerrainTemplate.absolutize(format(defaultTerrainTemplate.getPerPageConfig(), page.x, page.y));
+			String name = defaultTerrainTemplate
+					.absolutize(format(defaultTerrainTemplate.getPerPageConfig(), page.x, page.y));
 			try {
 				terrainTemplate = TerrainTemplateConfiguration.get(app.getAssetManager(), name, defaultTerrainTemplate);
 			} catch (AssetNotFoundException re) {
@@ -531,7 +540,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 			String coverageName = format(defaultTerrainTemplate.getTextureCoverageFormat(), page.x, page.y);
 
 			// Tri-planar?
-			int tp = app.getPreferences().getInt(SceneConfig.TERRAIN_TRI_PLANAR, SceneConfig.TERRAIN_TRI_PLANAR_DEFAULT);
+			int tp = app.getPreferences().getInt(SceneConfig.TERRAIN_TRI_PLANAR,
+					SceneConfig.TERRAIN_TRI_PLANAR_DEFAULT);
 			if (tp == AbstractConfig.DEFAULT) {
 				tp = terrainTemplate.isUseTriStrips() ? AbstractConfig.TRUE : AbstractConfig.FALSE;
 			}
@@ -540,10 +550,11 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 
 			pageInstance.setHighDetail(app.getPreferences().getBoolean(SceneConfig.TERRAIN_HIGH_DETAIL, true));
 			if (app.getPreferences().getBoolean(SceneConfig.TERRAIN_LIT, SceneConfig.TERRAIN_LIT_DEFAULT)) {
-				terrainMat = new Material(app.getAssetManager(), "MatDefs/Terrain/TerrainLighting.j3md");
+				terrainMat = new Material(app.getAssetManager(), LIT_TERRAIN_MATDEF);
 
 				// try {
-				final Texture img = app.getAssetManager().loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
+				final Texture img = app.getAssetManager()
+						.loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
 				terrainMat.setTexture("AlphaMap", img);
 				pageInstance.setCoverageTextureMaterialKey("AlphaMap");
 
@@ -586,18 +597,20 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 						loadLitSplat(terrainMat, 3, terrainTemplate.getTextureSplatting3(), terrainTemplate, 32);
 					}
 				} else {
-					loadLitTexture(terrainMat, 0,
-							String.format(terrainTemplate.absolutize(terrainTemplate.getTextureBaseFormat()), page.x, page.y),
+					loadLitTexture(terrainMat, 0, String
+							.format(terrainTemplate.absolutize(terrainTemplate.getTextureBaseFormat()), page.x, page.y),
 							terrainTemplate, 1);
 				}
 			} else {
 
-				terrainMat = new Material(app.getAssetManager(), "MatDefs/" + terrainTemplate.getCustomMaterialName() + ".j3md");
+				terrainMat = new Material(app.getAssetManager(),
+						"MatDefs/" + terrainTemplate.getCustomMaterialName() + ".j3md");
 
 				// Get the Coverage texture (Alpha in JME terminology)
 				Texture coverageTexture;
 				// try {
-				coverageTexture = app.getAssetManager().loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
+				coverageTexture = app.getAssetManager()
+						.loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
 				// } catch (AssetNotFoundException anfe) {
 				// coverageTexture = app.getAssetManager().loadTexture(
 				// SceneConstants.TERRAIN_PATH +
@@ -647,8 +660,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 						loadUnlitSplat(terrainMat, 4, terrainTemplate.getTextureSplatting3(), terrainTemplate, 32);
 					}
 				} else {
-					loadUnlitTexture(terrainMat, 1,
-							String.format(terrainTemplate.absolutize(terrainTemplate.getTextureBaseFormat()), page.x, page.y),
+					loadUnlitTexture(terrainMat, 1, String
+							.format(terrainTemplate.absolutize(terrainTemplate.getTextureBaseFormat()), page.x, page.y),
 							terrainTemplate, 1);
 				}
 			}
@@ -674,8 +687,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 					LOG.fine(String.format("    TerrainQuad(%d,%d) scaling by %6.3f", terrainTemplate.getTileSize(),
 							terrainTemplate.getPageSize(), pageScale));
 				}
-				final TerrainQuadWrapper quad = new TerrainQuadWrapper(pageInstance, "terrain", terrainTemplate.getTileSize(),
-						terrainTemplate.getPageSize(), heightmap.getHeightMap());
+				final TerrainQuadWrapper quad = new TerrainQuadWrapper(pageInstance, "terrain",
+						terrainTemplate.getTileSize(), terrainTemplate.getPageSize(), heightmap.getHeightMap());
 				// quad.setNeighbourFinder(this);
 				pageInstance.setQuad(quad);
 				pageInstance.setHeightmap(heightmap);
@@ -719,8 +732,9 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 							node.addControl(scenePhy);
 							physicsState.getPhysicsSpace().add(node);
 							if (LOG.isLoggable(Level.FINE)) {
-								LOG.fine(format("    lt: @%s, wt: %s, ts: %s, ws: %s, page scale %6.3f", node.getLocalTranslation(),
-										node.getWorldTranslation(), node.getLocalScale(), node.getWorldScale(), pageScale));
+								LOG.fine(format("    lt: @%s, wt: %s, ts: %s, ws: %s, page scale %6.3f",
+										node.getLocalTranslation(), node.getWorldTranslation(), node.getLocalScale(),
+										node.getWorldScale(), pageScale));
 							}
 							pageInstance.setPhysics(scenePhy);
 						} else {
@@ -756,14 +770,16 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 
 		AbstractHeightMap heightmap = null;
 		try {
-			LOG.info(String.format("Creating heightmap from image of %s of %dx%d for depth %d", heightMapImage.getFormat(),
-					heightMapImage.getWidth(), heightMapImage.getHeight(), heightMapImage.getDepth()));
-			if (heightMapImage.getFormat() == Format.Luminance16) {
+			LOG.info(String.format("Creating heightmap %s from image of %s of %dx%d for depth %d",
+					heightMapPath, heightMapImage.getFormat(), heightMapImage.getWidth(), heightMapImage.getHeight(),
+					heightMapImage.getDepth()));
+			if (heightMapImage.getFormat() == Format.Luminance16F) {
 				heightmap = new SaveableWideImageBasedHeightMap(heightMapImage,
 						65535f / (float) instance.getTerrainTemplate().getMaxHeight());
 			} else {
-				throw new IOException("Only 16 bit greyscale currently supported for heightmap images (image  has depth of "
-						+ heightMapImage.getDepth() + ".");
+				throw new IOException(
+						"Only 16 bit greyscale currently supported for heightmap images (image  has depth of "
+								+ heightMapImage.getDepth() + ".");
 				// heightmap = new SaveableImageBasedHeightMap(heightMapImage,
 				// SceneConstants.HEIGHTMAP_SCALE);
 			}
@@ -820,77 +836,79 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		}
 
 		// Material instance may have changed
-		mat = quad.getMaterial();
+		if (quad != null) {
+			mat = quad.getMaterial();
 
-		int i = 0;
+			int i = 0;
 
-		// Reconfig the textures and texture scaling
-		if (mat.getParam("DiffuseMap") == null) {
-			// Unlit
-			for (String s : new String[] { "Tex1", "Tex2", "Tex3", "Tex4" }) {
-				Texture tex = null;
-				switch (i++) {
-				case 0:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting0());
-					mat.setTexture("Tex1", tex);
-					break;
-				case 1:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting1());
-					mat.setTexture("Tex2", tex);
-					break;
-				case 2:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting2());
-					mat.setTexture("Tex3", tex);
-					break;
-				case 3:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting3());
-					mat.setTexture("Tex4", tex);
-					break;
+			// Reconfig the textures and texture scaling
+			if (mat.getParam("DiffuseMap") == null) {
+				// Unlit
+				for (String s : new String[] { "Tex1", "Tex2", "Tex3", "Tex4" }) {
+					Texture tex = null;
+					switch (i++) {
+					case 0:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting0());
+						mat.setTexture("Tex1", tex);
+						break;
+					case 1:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting1());
+						mat.setTexture("Tex2", tex);
+						break;
+					case 2:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting2());
+						mat.setTexture("Tex3", tex);
+						break;
+					case 3:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting3());
+						mat.setTexture("Tex4", tex);
+						break;
+					}
+					tex.setWrap(Texture.WrapMode.Repeat);
+					configureTexScaling(mat, s);
 				}
-				tex.setWrap(Texture.WrapMode.Repeat);
-				configureTexScaling(mat, s);
-			}
-		} else {
-			// Lit
-			for (String s : new String[] { "DiffuseMap", "DiffuseMap_1", "DiffuseMap_2", "DiffuseMap_3" }) {
-				Texture tex = null;
-				switch (i++) {
-				case 0:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting0());
-					mat.setTexture("DiffuseMap", tex);
-					break;
-				case 1:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting1());
-					mat.setTexture("DiffuseMap_1", tex);
-					break;
-				case 2:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting2());
-					mat.setTexture("DiffuseMap_2", tex);
-					break;
-				case 3:
-					tex = app.getAssetManager()
-							.loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + terrainTemplate.getTextureSplatting3());
-					mat.setTexture("DiffuseMap_3", tex);
-					break;
+			} else {
+				// Lit
+				for (String s : new String[] { "DiffuseMap", "DiffuseMap_1", "DiffuseMap_2", "DiffuseMap_3" }) {
+					Texture tex = null;
+					switch (i++) {
+					case 0:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting0());
+						mat.setTexture("DiffuseMap", tex);
+						break;
+					case 1:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting1());
+						mat.setTexture("DiffuseMap_1", tex);
+						break;
+					case 2:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting2());
+						mat.setTexture("DiffuseMap_2", tex);
+						break;
+					case 3:
+						tex = app.getAssetManager().loadTexture(SceneConstants.TERRAIN_PATH + "/Terrain-Common/"
+								+ terrainTemplate.getTextureSplatting3());
+						mat.setTexture("DiffuseMap_3", tex);
+						break;
+					}
+					tex.setWrap(Texture.WrapMode.Repeat);
+					configureTexScaling(mat, s);
 				}
-				tex.setWrap(Texture.WrapMode.Repeat);
-				configureTexScaling(mat, s);
 			}
+
+			// LOD
+			addOrRemoveLODControl(quad);
+
+			// Wireframe
+			quad.getMaterial().getAdditionalRenderState().setWireframe(app.getPreferences()
+					.getBoolean(TerrainConfig.TERRAIN_WIREFRAME, TerrainConfig.TERRAIN_WIREFRAME_DEFAULT));
 		}
-
-		// LOD
-		addOrRemoveLODControl(quad);
-
-		// Wireframe
-		quad.getMaterial().getAdditionalRenderState().setWireframe(
-				app.getPreferences().getBoolean(TerrainConfig.TERRAIN_WIREFRAME, TerrainConfig.TERRAIN_WIREFRAME_DEFAULT));
 
 		// Water
 		reconfigureWaterPlane(instance);
@@ -933,7 +951,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		final MatParamTexture textureParam = mat.getTextureParam(key);
 		if (textureParam != null) {
 			Texture tex = textureParam.getTextureValue();
-			if (app.getPreferences().getBoolean(SceneConfig.TERRAIN_SMOOTH_SCALING, SceneConfig.TERRAIN_SMOOTH_SCALING_DEFAULT)) {
+			if (app.getPreferences().getBoolean(SceneConfig.TERRAIN_SMOOTH_SCALING,
+					SceneConfig.TERRAIN_SMOOTH_SCALING_DEFAULT)) {
 				tex.setMagFilter(Texture.MagFilter.Bilinear);
 				tex.setMinFilter(Texture.MinFilter.BilinearNearestMipMap);
 			} else {
@@ -943,18 +962,21 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		}
 	}
 
-	private void activateUnlit(PageLocation page, TerrainInstance instance, final TerrainTemplateConfiguration terrainTemplate,
-			Material mat, String coverageName, float alphaScale, boolean useTp, TerrainQuad quad) {
+	private void activateUnlit(PageLocation page, TerrainInstance instance,
+			final TerrainTemplateConfiguration terrainTemplate, Material mat, String coverageName, float alphaScale,
+			boolean useTp, TerrainQuad quad) {
 		LOG.info(String.format("Activating unlit terrain for %s (tri-planar %s)", page, useTp));
 		// Activate unlit terrain
 		instance.setCoverageTextureMaterialKey("Alpha");
-		Material newMat = new Material(app.getAssetManager(), "MatDefs/" + terrainTemplate.getCustomMaterialName() + ".j3md");
+		Material newMat = new Material(app.getAssetManager(),
+				"MatDefs/" + terrainTemplate.getCustomMaterialName() + ".j3md");
 		final boolean wantHighDetail = app.getPreferences().getBoolean(SceneConfig.TERRAIN_HIGH_DETAIL, true);
 
 		if (mat == null) {
 			LOG.info(String.format("Creating new unlit material for %s", page));
 			// No existing material
-			final Texture img = app.getAssetManager().loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
+			final Texture img = app.getAssetManager()
+					.loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
 			newMat.setTexture("Alpha", img);
 			instance.setCoverage(img.getImage());
 			instance.setHighDetail(wantHighDetail);
@@ -1004,7 +1026,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 				// not sure if
 				// i care though
 				if (instance.isNeedsSave()) {
-					throw new IllegalStateException("Cannot change detail settings for this tile, as there are unsaved changes.");
+					throw new IllegalStateException(
+							"Cannot change detail settings for this tile, as there are unsaved changes.");
 				}
 				instance.setHighDetail(wantHighDetail);
 				createUnlitSplats(wantHighDetail, useTp, newMat, terrainTemplate);
@@ -1020,12 +1043,13 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		LOG.info(String.format("Activating lit terrain for %s (tri-planar %s)", page, useTp));
 
 		instance.setCoverageTextureMaterialKey("AlphaMap");
-		Material newMat = new Material(app.getAssetManager(), "MatDefs/Terrain/TerrainLighting.j3md");
+		Material newMat = new Material(app.getAssetManager(), LIT_TERRAIN_MATDEF);
 		final boolean wantHighDetail = app.getPreferences().getBoolean(SceneConfig.TERRAIN_HIGH_DETAIL, true);
 		if (mat == null) {
 			// No existing material
 			LOG.info(String.format("Creating new lit material for %s", page));
-			final Texture img = app.getAssetManager().loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
+			final Texture img = app.getAssetManager()
+					.loadTexture(terrainTemplate.getAssetFolder() + "/" + coverageName);
 			newMat.setTexture("AlphaMap", img);
 			instance.setCoverage(img.getImage());
 			createLitSplats(wantHighDetail, useTp, newMat, terrainTemplate, page);
@@ -1075,7 +1099,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 				// not sure if
 				// i care though
 				if (instance.isNeedsSave()) {
-					throw new IllegalStateException("Cannot change detail settings for this tile, as there are unsaved changes.");
+					throw new IllegalStateException(
+							"Cannot change detail settings for this tile, as there are unsaved changes.");
 				}
 				instance.setHighDetail(wantHighDetail);
 				createLitSplats(wantHighDetail, useTp, newMat, terrainTemplate, page);
@@ -1161,14 +1186,16 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 
 	private void loadUnlitSplat(Material terrainMat, int index, String name, TerrainTemplateConfiguration configuration,
 			float scale) {
-		loadUnlitTexture(terrainMat, index, SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + name, configuration, scale);
+		loadUnlitTexture(terrainMat, index, SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + name, configuration,
+				scale);
 	}
 
-	private void loadUnlitTexture(Material terrainMat, int index, String path, TerrainTemplateConfiguration configuration,
-			float scale) {
+	private void loadUnlitTexture(Material terrainMat, int index, String path,
+			TerrainTemplateConfiguration configuration, float scale) {
 		Texture texture = app.getAssetManager().loadTexture(path);
 		texture.setWrap(Texture.WrapMode.Repeat);
-		if (!app.getPreferences().getBoolean(SceneConfig.TERRAIN_SMOOTH_SCALING, SceneConfig.TERRAIN_SMOOTH_SCALING_DEFAULT)) {
+		if (!app.getPreferences().getBoolean(SceneConfig.TERRAIN_SMOOTH_SCALING,
+				SceneConfig.TERRAIN_SMOOTH_SCALING_DEFAULT)) {
 			texture.setMagFilter(Texture.MagFilter.Nearest);
 			texture.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
 		}
@@ -1183,14 +1210,16 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 
 	private void loadLitSplat(Material terrainMat, int index, String name, TerrainTemplateConfiguration configuration,
 			float scale) {
-		loadLitTexture(terrainMat, index, SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + name, configuration, scale);
+		loadLitTexture(terrainMat, index, SceneConstants.TERRAIN_PATH + "/Terrain-Common/" + name, configuration,
+				scale);
 	}
 
 	private void loadLitTexture(Material terrainMat, int index, String path, TerrainTemplateConfiguration configuration,
 			float scale) {
 		Texture texture = app.getAssetManager().loadTexture(path);
 		texture.setWrap(Texture.WrapMode.Repeat);
-		if (!app.getPreferences().getBoolean(SceneConfig.TERRAIN_SMOOTH_SCALING, SceneConfig.TERRAIN_SMOOTH_SCALING_DEFAULT)) {
+		if (!app.getPreferences().getBoolean(SceneConfig.TERRAIN_SMOOTH_SCALING,
+				SceneConfig.TERRAIN_SMOOTH_SCALING_DEFAULT)) {
 			texture.setMagFilter(Texture.MagFilter.Nearest);
 			texture.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
 		}
@@ -1212,11 +1241,12 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 
 		// Determine heights
 		float currentHeight = pageInstance.getLiquidElevation();
-		float requiredHeight = liquidPlaneConfiguration == null ? Float.MIN_VALUE : liquidPlaneConfiguration.getElevation();
+		float requiredHeight = liquidPlaneConfiguration == null ? Float.MIN_VALUE
+				: liquidPlaneConfiguration.getElevation();
 
 		// Determine plants
-		String currentPlane = pageInstance.getWaterPlaneName();
-		String requiredPlane = liquidPlaneConfiguration == null ? null : liquidPlaneConfiguration.getMaterial();
+		LiquidPlane currentPlane = pageInstance.getWaterPlaneName();
+		LiquidPlane requiredPlane = liquidPlaneConfiguration == null ? null : liquidPlaneConfiguration.getMaterial();
 		if (!Objects.equals(currentPlane, requiredPlane)) {
 			LOG.info(String.format("Reloading liquid plane because plane in use has changed from %s to %s",
 					String.valueOf(currentPlane), String.valueOf(requiredPlane)));
@@ -1235,11 +1265,12 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 		}
 
 		// Water lighting
-		Lighting waterLighting = app.getPreferences().getBoolean(SceneConfig.TERRAIN_LIT, SceneConfig.TERRAIN_LIT_DEFAULT)
-				? ExtendedMaterialListKey.Lighting.LIT : ExtendedMaterialListKey.Lighting.UNLIT;
+		Lighting waterLighting = app.getPreferences().getBoolean(SceneConfig.TERRAIN_LIT,
+				SceneConfig.TERRAIN_LIT_DEFAULT) ? ExtendedMaterialListKey.Lighting.LIT
+						: ExtendedMaterialListKey.Lighting.UNLIT;
 		Lighting currentWaterLighting = pageInstance.getWaterPlane() != null
-				? ((ExtendedMaterialKey) ((Material) ((Geometry) pageInstance.getWaterPlane()).getMaterial()).getKey()).getListKey()
-						.getLighting()
+				? ((ExtendedMaterialKey) ((Material) ((Geometry) pageInstance.getWaterPlane()).getMaterial()).getKey())
+						.getListKey().getLighting()
 				: null;
 
 		if (wantsPrettyWater != havePrettyWater || !Objects.equals(currentPlane, requiredPlane)
@@ -1260,13 +1291,13 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 							SceneConfig.TERRAIN_PRETTY_WATER_DEFAULT)) {
 
 						String className = WaterFilterCapable.class.getPackage().getName() + "."
-								+ liquidPlaneConfiguration.getMaterial() + "WaterFilter";
+								+ liquidPlaneConfiguration.getMaterial().toMaterialName() + "WaterFilter";
 						try {
 							Class<? extends WaterFilterCapable> clazz = (Class<? extends WaterFilterCapable>) Class
 									.forName(className);
 							WaterFilterCapable waterConfig = clazz.newInstance();
-							final WaterFilter water = createWaterFilter(waterConfig, terrainTemplate, pageInstance.getWorldX(),
-									pageInstance.getWorldZ());
+							final WaterFilter water = createWaterFilter(waterConfig, terrainTemplate,
+									pageInstance.getWorldX(), pageInstance.getWorldZ());
 							pageInstance.setWater(water);
 							// Attach to scene on scene thread
 							app.enqueue(new Callable<Void>() {
@@ -1278,8 +1309,8 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 							foundWater = true;
 
 						} catch (ClassNotFoundException cnfe) {
-							LOG.info(String.format("No pretty water for %s (%s)", liquidPlaneConfiguration.getMaterial(),
-									className));
+							LOG.info(String.format("No pretty water for %s (%s)",
+									liquidPlaneConfiguration.getMaterial(), className));
 						}
 
 					}
@@ -1304,14 +1335,12 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 						Box b = new Box((float) terrainTemplate.getPageWorldX() / 2, 0.1f,
 								(float) terrainTemplate.getPageWorldZ() / 2);
 						final Geometry geom = new Geometry("Box", b);
-						String materialName = terrainTemplate.getLiquidPlaneConfiguration().getMaterial();
-						if (materialName.endsWith("Plane")) {
-							materialName = materialName.substring(0, materialName.length() - 5);
-						}
-						LOG.info(String.format("Reconfiguring water using %s (%s)", materialName, waterLighting));
-						Material material = liquidMaterial.get(materialName);
+						LiquidPlane liquidPlane = terrainTemplate.getLiquidPlaneConfiguration().getMaterial();
+						LOG.info(String.format("Reconfiguring water using %s (%s)", liquidPlane, waterLighting));
+						Material material = liquidMaterial.get(liquidPlane.toMaterialName());
 						if (material == null) {
-							throw new AssetNotFoundException(String.format("No liquid plane material %s", materialName));
+							throw new AssetNotFoundException(
+									String.format("No liquid plane material %s", liquidPlane.toMaterialName()));
 						}
 						geom.setMaterial(material);
 						float hp = terrainTemplate.getPageWorldX() / 2f;
@@ -1370,11 +1399,13 @@ public class TerrainLoader extends AbstractSceneQueue<PageLocation, TerrainInsta
 	}
 
 	private void setTerrain(String requiredTerrain) {
-		if (requiredTerrain != null) {
+		if (StringUtils.isNotBlank(requiredTerrain)) {
 			LOG.info(String.format("Loading terrain template %s", requiredTerrain));
 			String terrainConfigPath = requiredTerrain.replace("#", "/");
-			setDefaultTerrainTemplate(TerrainTemplateConfiguration.get(app.getAssetManager(),
-					String.format("%s/%s", SceneConstants.TERRAIN_PATH, terrainConfigPath)), new Vector3f(0, 0, 0), null);
+			setDefaultTerrainTemplate(
+					TerrainTemplateConfiguration.get(app.getAssetManager(),
+							String.format("%s/%s", SceneConstants.TERRAIN_PATH, terrainConfigPath)),
+					new Vector3f(0, 0, 0), null);
 		} else {
 			LOG.info("Clearing terrain template.");
 			setDefaultTerrainTemplate(null, new Vector3f(0, 0, 0), null);

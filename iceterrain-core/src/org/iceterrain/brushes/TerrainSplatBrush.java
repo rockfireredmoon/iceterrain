@@ -1,6 +1,5 @@
 package org.iceterrain.brushes;
 
-import org.icelib.UndoManager;
 import org.iceterrain.AbstractBrush;
 import org.iceterrain.TerrainInstance;
 import org.iceterrain.TerrainLoader;
@@ -8,6 +7,9 @@ import org.iceterrain.TerrainLoader;
 import com.jme3.asset.AssetManager;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector2f;
+
+import icetone.core.undo.UndoManager;
+import icetone.core.undo.UndoableCommand;
 
 /**
  * Adjusts the A, R, G and B channels of a texture splat using a bitmap image as a mask
@@ -39,13 +41,13 @@ public class TerrainSplatBrush extends AbstractBrush {
         return super.calcYStep(instance) / 2f;
     }
     
-    protected UndoManager.UndoableCommand paintPixel(final TerrainInstance instance, Vector2f center, final float amount, int paints) {
+    protected UndoableCommand paintPixel(final TerrainInstance instance, Vector2f center, final float amount, int paints) {
         final Vector2f pixel = instance.getCoveragePixelPositionForWorldPosition(center);
         if (pixel == null || pixel.x < 0 || pixel.y < 0 || pixel.x >= instance.getCoverage().getWidth() || pixel.y >= instance.getCoverage().getHeight()) {
             return null;
         }
         final ColorRGBA originalCoverage = instance.getCoverageAtPixelPosition((int) pixel.x, (int) pixel.y);
-        return new UndoManager.UndoableCommand() {
+        return new UndoableCommand() {
             private boolean wasNeedsSave;
 
             public void undoCommand() {
